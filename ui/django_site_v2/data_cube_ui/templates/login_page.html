@@ -1,0 +1,52 @@
+{% extends "default.html" %}
+
+{% block css %}
+<link rel="stylesheet" type="text/css" href="/static/admin/css/base.css" />
+<link rel="stylesheet" type="text/css" href="/static/admin/css/login.css" />
+{% endblock %}
+
+{% block content %}
+<div id="container">
+    <!-- Header -->
+    <div id="header">
+        <div id="branding">
+            <h1 id="site-name">Login</h1>
+        </div>
+    </div>
+    <!-- END Header -->
+    <!-- Content -->
+    <div id="content" class="colM">
+      {% if message %}
+      <p class="errornote">
+          {{ message }}
+      </p>
+      {% endif %}
+        <div id="content-main">
+            <form action="/login/" method="post" id="login-form">
+                {% csrf_token %}
+                <div class="form-row">
+                    <label class="required" for="id_username">Username:</label>
+                    <input id="id_username" maxlength="254" name="username" type="text" />
+                </div>
+                <div class="form-row">
+                    <label class="required" for="id_password">Password:</label>
+                    <input id="id_password" name="password" type="password" />
+                    {% if next %}
+                      <input type="hidden" name="next" value="{{ next }}" />
+                    {% endif %}
+                </div>
+                <div class="submit-row">
+                    <label>&nbsp;</label>
+                    <input id="log-in-submit" type="submit" value="Log in" />
+                </div>
+            </form>
+            <script type="text/javascript">
+                document.getElementById('id_username').focus()
+            </script>
+        </div>
+        <br class="clear" />
+    </div>
+    <!-- END Content -->
+    <div id="footer"></div>
+</div>
+{% endblock %}

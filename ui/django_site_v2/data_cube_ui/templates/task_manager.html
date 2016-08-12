@@ -1,0 +1,70 @@
+{% extends "default.html" %}
+{% block javascript %}
+<script type="text/javascript" src="/static/assets/js/jquery-2.1.4.min.js"></script>
+<script type="text/javascript" src="/static/assets/js/task_manager.js"></script>
+
+<script type="text/javascript" src="/static/assets/js/jquery.dataTables.min.js"></script>
+{% endblock %}
+{% block css %}
+<!-- Jquery UI/jQuery -->
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.min.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.structure.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.structure.min.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.theme.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.theme.min.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery.multiselect.filter.css" rel="stylesheet" />
+<link href="/static/assets/js/jquery-ui-1.11.4.custom/jquery.multiselect.css" rel="stylesheet" />
+<link href="/static/assets/css/style.css" rel="stylesheet" type="text/css" media="screen, projection" />
+
+<!-- Site specific css -->
+<link rel="stylesheet" href="/static/assets/css/style_header.css" type="text/css" media="screen, projection" />
+<link href="/static/assets/css/task_manager.css" rel="stylesheet" type="text/css" media="screen, projection" />
+
+{% endblock %}
+{% block content %}
+<div id="main-content">
+  <div id="table-content" class="table-wrapper">
+    <table id="query-list-table-full" class="query-table">
+      <thead>
+	<tr>
+	  {% for key, values in formatted_headers_dictionary.items %}
+	  {% for v in values %}
+	  {% if forloop.last %}
+	  <th>More Info</th>
+	  {% else %}
+	  <th>{{v}}</th>
+	  {% endif %}
+	  {% endfor %}
+	  {% endfor %}
+	</tr>
+      </thead>
+      <tbody>
+	{% for key, values in data_dictionary.items %}
+	{% if forloop.counter|divisibleby:2 %}
+	<tr>
+	  {% for v in values %}
+	  {% if forloop.last %}
+	  <td class="details-column-even"><a href="{% url 'get_query_details' v %}" class="btn">Details</a></td>
+	  {% else %}
+	  <td class="even">{{v}}</td>
+	  {% endif %}
+	  {% endfor %}
+	</tr>
+	{% else %}
+	<tr>
+	  {% for v in values %}
+	  {% if forloop.last %}
+	  <td class="details-column-odd"><a href="{% url 'get_query_details' v %}" class="btn">Details</a></td>
+	  {% else %}
+	  <td class="odd">{{v}}</td>
+	  {% endif %}
+	  {% endfor %}
+	</tr>
+	{% endif %}
+	{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+﻿<!DOCTYPE html>
+<html lang="en-US">
+<!-- Author: AHDS
+     Creation date: 2016-06-23
+     Modified by:
+     Last modified date: -->
+<head>
+    <meta charset="UTF-8" />
+    <title>CEOS Data Cube</title>
+    <meta name="author" content="The Design Group">
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.css"/>
+    <link rel="stylesheet" href="/static/assets/css/style.css"/>
+    <link rel="stylesheet" href="/static/assets/css/style_header.css" />
+    <script type="text/javascript" src="/static/assets/js/jquery-2.1.4.min.js"></script>
+    <script type="text/javascript" src="/static/assets/js/jquery-ui-1.11.4.custom/jquery-ui.js"></script>
+    {% block javascript %}
+    {% endblock %}
+    {% block css %}
+    {% endblock %}
+</head>
+<body class="login">
+    <div id="wrap">
+        <div id="headerContent">
+            <header id="header-main">
+                {% include "header.html" %}
+            </header>
+        </div>
+          {% block content %}
+          {% endblock %}
+    </div>
+</body>
+</html>

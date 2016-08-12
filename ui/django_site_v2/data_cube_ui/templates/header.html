@@ -1,0 +1,31 @@
+<!-- Author: AHDS
+     Creation date: 2016-06-23
+     Modified by:
+     Last modified date: -->
+﻿<h1 id="brand-main"><a href="#"><span>CEOS Data Cube</span></a><!--<img src="assets/images/alpha.png" />--></h1>
+<nav id="main-nav">
+    <ul id="menu">
+        <li ><a href="/">Home</a></li>
+        <li ><a id="map_tools" href="#" class="drop">Map Tool</a>
+          <div class="dropdown_2columns">
+            {% for area in areas %}
+              <a id="{{ area.area_id }}" href="/custom_mosaic_tool/{{ area.area_id }}" class="drop">{{ area.area_name }}</a>
+            {% endfor %}
+          </div>
+        </li>
+        <li ><a id="task-manager-nav" href="/custom_mosaic_tool/task_manager">Task Manager</a></li>
+    </ul>
+</nav>
+<nav id="utility-nav">
+
+  {% if user.is_authenticated %}
+  <div>
+    <a class="user-info" target="_blank">Logged in as: {{ user.username }}</a>
+    <a id="logout-button" href="{% url 'logout_view' %}?next=/" class="log-in-out-btn">Logout</a>
+  </div>
+  {% else %}
+  <div>
+    <a id="login-button" href="{% url 'login' %}?next=/" class="log-in-out-btn">Log In</a>
+  </div>
+  {% endif %}
+</nav>

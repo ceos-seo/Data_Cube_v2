@@ -1,0 +1,122 @@
+<!-- Author: AHDS
+     Creation date: 2016-06-23
+     Modified by:
+     Last modified date: -->
+<!-- Requires other implementation of set_selected_result(query_id), remove_result(query_id), toggle_visibility, toggle_highlight_nodata, sanitize_id-->
+<div id="task_list" class="boxed_list">
+  {% for query in queries %}
+    <h3 id="result_{{ query.query_id }}" onmousedown="resultClicked('{{ query.query_id }}')">{{ query.title }}  : Submitted {{ query.query_start|date:"m/d/Y fa" }}</h3>
+    <div class="spaced_details">
+      <table>
+        <tr>
+          <td>Time Submitted: </td>
+          <td class="right_aligned_text">{{ query.query_start }}</td>
+        </tr>
+        <tr>
+          <td>Time Finished: </td>
+          <td class="right_aligned_text">{{ query.query_end }}</td>
+        </tr>
+        <tr>
+          <td>Latitude Range: </td>
+          <td class="right_aligned_text">({{ query.latitude_min }}, {{ query.latitude_max }})</td>
+        </tr>
+        <tr>
+          <td>Longitude Range: </td>
+          <td class="right_aligned_text">({{ query.longitude_min }}, {{ query.longitude_max }})</td>
+        </tr>
+        <tr>
+          <td>Time Range: </td>
+          <td class="right_aligned_text">({{ query.time_start|date:"m/d/Y" }}, {{ query.time_end|date:"m/d/Y" }})</td>
+        </tr>
+        <tr>
+          <td>Bands:</td>
+          <td class="right_aligned_text">{{ query.measurements }}</td>
+        </tr>
+        <tr>
+          <td>Highlight NoData:</td>
+          <td class="right_aligned_text"><input type="checkbox" name="show_nodata" onclick="toggle_highlight_nodata(this, '{{ query.query_id }}')"></td>
+        </tr>
+      </table>
+      <button class="left_aligned" type="button" onclick="remove_result('{{ query.query_id }}');">Delete</button>
+      <button class="right_aligned" type="button" onclick="toggle_visibility('{{ query.query_id }}');">Show/Hide</button>
+    </div>
+  {% endfor %}
+</div>
+<h2>Acquisitions List</h2>
+<hr>
+<div id='scenes_list' class="boxed_list">
+  {% for metadata_entry in metadata_entries %}
+    {% for acquisition, pixels, pixel_percentage in metadata_entry.acquisitions_dates_with_pixels_percentages %}
+      <dl class="scenes_list" id="scenes_{{ metadata_entry.query_id }}">
+        <dt>{{ acquisition }} <span><button class="tooltipped" title="Load this single scene. This will hide the current result." onclick="load_scene_from_query('{{ metadata_entry.query_id }}', '{{ acquisition }}')" style='background:none; border:none; padding:0; margin:0; cursor:pointer;'>Load this scene</button></span></dt>
+        <dd>Clean pixels: <span>{{ pixels }}</span></dd>
+        <dd>Total Pixels: <span>{{ metadata_entry.pixel_count }}</span></dd>
+        <dd>Clean Pixel Percentage: <span>{{ pixel_percentage|floatformat:2 }}%</span></dd>
+      </dl>
+    {% endfor %}
+  {% endfor %}
+</div>
+<h2>Task Metadata</h2>
+<hr>
+<div id='query_metadata' class="boxed_list spaced_details standalone_table">
+  {% for metadata_entry in metadata_entries %}
+    <table id="meta_{{ metadata_entry.query_id }}" class="scene_meta">
+      <tr>
+        <td>Scene Count:</td>
+        <td class="right_aligned_text">{{ metadata_entry.scene_count }}</td>
+      </tr>
+      <tr>
+        <td>Total Pixel Count:</td>
+        <td class="right_aligned_text">{{ metadata_entry.pixel_count }}</td>
+      </tr>
+      <tr>
+        <td>Clean Pixel Count:</td>
+        <td class="right_aligned_text">{{ metadata_entry.clean_pixel_count }}</td>
+      </tr>
+      <tr>
+        <td>Clean Pixel Percentage:</td>
+        <td class="right_aligned_text">{{ metadata_entry.percentage_clean_pixels|floatformat:2 }}%</td>
+      </tr>
+    </table>
+  {% endfor %}
+</div>
+
+<script>
+
+  $( "#task_list" ).accordion({
+    active: false,
+    //collapsible: true,
+    heightStyle: "content"
+  });
+  $(".tooltipped").tooltip();
+
+  function resultClicked(query_id) {
+      //$("#task_list .selectTask").removeClass('sel_high');
+      //$("#result_" + query_id).addClass('sel_high');
+      set_selected_result(query_id);
+      $('.scenes_list').hide();
+      $('.scene_meta').hide();
+      $('#' + sanitize_id('scenes_' + query_id)).show();
+      $('#' + sanitize_id('meta_' + query_id)).show();
+  }
+
+  function load_scene_from_query(query_id, date) {
+    //hide the current query, add the new single scene query.
+    toggle_visibility(query_id, false);
+    if (typeof(Worker) !== undefined) {
+        var w = new Worker("/static/assets/js/dcw.js");
+        w.postMessage({
+            'msg' : "SINGLE",
+            'result_type': "Single Acquisition",
+            'query_id': query_id,
+            'date': date,
+            'csrf': csrftoken
+        });
+        w.addEventListener("message", query_event_listener);
+        $("#tabs_main").tabs("option", "active", 0);
+    } else {
+        alert("This browser does not support webworkers.");
+    }
+    console.log(query_id, date);
+  }
+</script>
