@@ -1,39 +1,35 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
 
+import gdal, osr
+import numpy as np
+import xarray as xr
+import collections
+from datetime import datetime
+
+import datacube
 
 # Author: KMF
 # Creation date: 2016-06-13
-# Modified by: AHDS
-# Last modified date:
-
-import gdal, osr
-import collections
-import gc
-import numpy as np
-import xarray as xr
-from datetime import datetime
-import collections
-
-import datacube
 
 """
 General-use functions
@@ -61,8 +57,8 @@ def create_cfmask_clean_mask(cfmask):
     #   255 - fill          #
     #########################
 
-    clean_mask = np.reshape(np.in1d(cfmask.values.reshape(-1), [0, 1]),
-                            cfmask.shape)
+    clean_mask = np.reshape(np.in1d(cfmask.values.reshape(-1), [2, 3, 4, 255], invert=True),
+                            cfmask.values.shape)
     return clean_mask
 
 def get_spatial_ref(crs):
@@ -82,8 +78,115 @@ def get_spatial_ref(crs):
     ref.ImportFromEPSG(epsg_code)
     return str(ref)
 
-def save_to_geotiff(out_file, data_type, bands, geotransform, spatial_ref,
-                    x_pixels=3712, y_pixels=3711, no_data=-9999):
+def perform_timeseries_analysis(dataset_in, no_data=-9999):
+    """
+    Description:
+
+    -----
+    Input:
+      dataset_in (xarray.DataSet) - dataset with one variable to perform timeseries on
+    Output:
+      dataset_out (xarray.DataSet) - dataset containing
+        variables: normalized_data, total_data, total_clean
+    """
+
+    data_vars = list(dataset_in.data_vars)
+    key = data_vars[0]
+
+    data = dataset_in[key]
+
+    #shape = data.shape[1:]
+
+    data_dup = data.copy(deep=True)
+    data_dup.values = data_dup.values.astype('float')
+    data_dup.values[data.values == no_data] = 0
+
+    processed_data_sum = data_dup.sum('time')
+
+    # Create xarray of data
+    time = data.time
+    latitude = data.latitude
+    longitude = data.longitude
+
+    # Masking no data values then converting boolean to int for easy summation
+    clean_data_raw = np.reshape(np.in1d(data.values.reshape(-1), [no_data], invert=True),
+                                        data.values.shape).astype(int)
+
+    clean_data = xr.DataArray(clean_data_raw,
+                              coords=[time, latitude, longitude],
+                              dims=['time', 'latitude', 'longitude'])
+
+    clean_data_sum = clean_data.sum('time')
+
+    processed_data_normalized = processed_data_sum/clean_data_sum
+
+    dataset_out = xr.Dataset(collections.OrderedDict([('normalized_data', (['latitude', 'longitude'], processed_data_normalized)),
+                                                      ('total_data', (['latitude', 'longitude'], processed_data_sum)),
+                                                      ('total_clean', (['latitude', 'longitude'], clean_data_sum))]),
+                             coords={'latitude': latitude,
+                                     'longitude': longitude})
+
+    return dataset_out
+
+def perform_timeseries_analysis_iterative(dataset_in, intermediate_product=None, no_data=-9999):
+    """
+    Description:
+
+    -----
+    Input:
+      dataset_in (xarray.DataSet) - dataset with one variable to perform timeseries on
+    Output:
+      dataset_out (xarray.DataSet) - dataset containing
+        variables: normalized_data, total_data, total_clean
+    """
+
+    data_vars = list(dataset_in.data_vars)
+    key = data_vars[0]
+
+    data = dataset_in[key]
+
+    #shape = data.shape[1:]
+
+    data_dup = data.copy(deep=True)
+    data_dup.values = data_dup.values.astype('float')
+    data_dup.values[data.values == no_data] = 0
+
+    processed_data_sum = data_dup.sum('time')
+
+    # Create xarray of data
+    time = data.time
+    latitude = data.latitude
+    longitude = data.longitude
+
+    # Masking no data values then converting boolean to int for easy summation
+    clean_data_raw = np.reshape(np.in1d(data.values.reshape(-1), [no_data], invert=True),
+                                        data.values.shape).astype(int)
+
+    clean_data = xr.DataArray(clean_data_raw,
+                              coords=[time, latitude, longitude],
+                              dims=['time', 'latitude', 'longitude'])
+
+    clean_data_sum = clean_data.sum('time')
+
+    if intermediate_product is None:
+        processed_data_normalized = processed_data_sum/clean_data_sum
+        dataset_out = xr.Dataset(collections.OrderedDict([('normalized_data', (['latitude', 'longitude'], processed_data_normalized)),
+                                                          ('total_data', (['latitude', 'longitude'], processed_data_sum)),
+                                                          ('total_clean', (['latitude', 'longitude'], clean_data_sum))]),
+                                 coords={'latitude': latitude,
+                                         'longitude': longitude})
+    else:
+        intermediate_product['total_data'] += processed_data_sum
+        intermediate_product['total_clean'] += clean_data_sum
+        processed_data_normalized = intermediate_product['total_data'] / intermediate_product['total_clean']
+        #processed_data_normalized.values = np.nan_to_num(processed_data_normalized.values)
+        intermediate_product['normalized_data'] = processed_data_normalized
+        return intermediate_product
+
+    return dataset_out
+
+def save_to_geotiff(out_file, data_type, dataset_in, geotransform, spatial_ref,
+                    x_pixels=3711, y_pixels=3712, no_data=-9999):
     """
     Description:
       Save data in bands to a GeoTIFF
@@ -91,7 +194,7 @@ def save_to_geotiff(out_file, data_type, bands, geotransform, spatial_ref,
     Inputs:
       out_file (str) - name of output file
       data_type (gdal data type) - gdal.GDT_Int16, gdal.GDT_Float32, etc
-      bands xarray dataset - xarray dataset containing only bands to output.
+      dataset_in (xarray dataset) - xarray dataset containing only bands to output.
       geotransform (tuple) - (ul_lon, lon_dist, lon_rtn, ul_lat, lat_rtn, lat_dist)
       spatial_ref (str) - spatial reference of dataset's crs
     Optional Inputs:
@@ -99,14 +202,14 @@ def save_to_geotiff(out_file, data_type, bands, geotransform, spatial_ref,
       y_pixels (int) - num pixels in y direction
       no_data (int/float) - no data value
     """
-    data_vars = bands.data_vars
+
+    data_vars = dataset_in.data_vars
     driver = gdal.GetDriverByName('GTiff')
     raster = driver.Create(out_file, x_pixels, y_pixels, len(data_vars), data_type)
     raster.SetGeoTransform(geotransform)
     raster.SetProjection(spatial_ref)
     index = 1
     for key in data_vars:
-        print(key)
         out_band = raster.GetRasterBand(index)
         out_band.SetNoDataValue(no_data)
         out_band.WriteArray(data_vars[key].values)

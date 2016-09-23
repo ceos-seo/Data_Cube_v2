@@ -1,28 +1,24 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
-
-# Author: AHDS
-# Creation date: 2016-06-23
-# Modified by:
-# Last modified date: 2016-08-05
 
 # datacube imports.
 import datacube
@@ -45,7 +41,15 @@ from gdalconst import *
 # np for arrays
 import numpy as np
 
+# Author: AHDS
+# Creation date: 2016-06-23
+# Modified by:
+# Last modified date: 2016-08-05
+
 class DataAccessApi:
+    """
+    Class that provides wrapper functionality for the DataCube.
+    """
 
     dc = None
     api = None
@@ -70,25 +74,23 @@ class DataAccessApi:
     def get_dataset_by_extent(self, product, product_type=None, platform=None, time=None,
                               longitude=None, latitude=None, measurements=None, output_crs=None, resolution=None):
         """
-        gets and returns data based on lat/long bounding box inputs.
-        all params are optional. Leaving one out will just query the dc without it,
-        eg leaving out lat/lng but giving product returns dataset containing entire product.
-        params:
-          product='ls7_ledaps_wgs84' -> from the ingestion config output type.
-        ##########################################################################
-        this can include any field in the dc.list_products() call, filtering by attributes. There are the most useful. Also
-        included is instrument, format
-          product_type='LEDAPS' -> from the dataset_type.metadata.product_type
-          platform='LANDSAT_7' -> from the dataset_type and the ingestion metadata.
-        ##########################################################################
-          time=('1996-01-01', '2016-03-20') -> desired dates. Can probably be formatted in other ways.
-          longitude=(34,7) -> desired longitude range. wgs84 coords
-          latitude=(-1,1) -> desired latitude range. wgs84 coords.
-          measurements=['red', 'green', 'blue'] -> band names derived from the ingestion config of the product.
-          output_crs='EPSG:3577' -> used to reproject the data before its returned.
-          resolution=(-25, 25) -> resolution of the reprojected data. first number is negative.
-        others: We can specify a crs for the input extent bounds but the default is wgs84.
-        returns: xarray dataset containing requested data.
+        Gets and returns data based on lat/long bounding box inputs.
+        All params are optional. Leaving one out will just query the dc without it, (eg leaving out
+        lat/lng but giving product returns dataset containing entire product.)
+
+        Args:
+            product (string): The name of the product associated with the desired dataset.
+            product_type (string): The type of product associated with the desired dataset.
+            platform (string): The platform associated with the desired dataset.
+            time (tuple): A tuple consisting of the start time and end time for the dataset.
+            longitude (tuple): A tuple of floats specifying the min,max longitude bounds.
+            latitude (tuple): A tuple of floats specifying the min,max latitutde bounds.
+            measurements (list): A list of strings that represents all measurements.
+            output_crs (string): Determines reprojection of the data before its returned
+            resolution (tuple): A tuple of min,max ints to determine the resolution of the data.
+
+        Returns:
+            data (xarray): dataset with the desired data.
         """
 
         # there is probably a better way to do this but I'm not aware of it.
@@ -114,27 +116,25 @@ class DataAccessApi:
     def get_dataset_tiles(self, product, product_type=None, platform=None, time=None,
                               longitude=None, latitude=None, measurements=None, output_crs=None, resolution=None):
         """
-        gets and returns data based on lat/long bounding box inputs.
-        all params are optional. Leaving one out will just query the dc without it,
-        eg leaving out lat/lng but giving product returns dataset containing entire product.
-        params:
-          product='ls7_ledaps_wgs84' -> from the ingestion config output type.
-        ##########################################################################
-        this can include any field in the dc.list_products() call, filtering by attributes. There are the most useful. Also
-        included is instrument, format
-          product_type='LEDAPS' -> from the dataset_type.metadata.product_type
-          platform='LANDSAT_7' -> from the dataset_type and the ingestion metadata.
-        ##########################################################################
-          time=('1996-01-01', '2016-03-20') -> desired dates. Can probably be formatted in other ways.
-          longitude=(34,7) -> desired longitude range. wgs84 coords
-          latitude=(-1,1) -> desired latitude range. wgs84 coords.
-          measurements=['red', 'green', 'blue'] -> band names derived from the ingestion config of the product.
-          output_crs='EPSG:3577' -> used to reproject the data before its returned.
-          resolution=(-25, 25) -> resolution of the reprojected data. first number is negative.
-        others: We can specify a crs for the input extent bounds but the default is wgs84.
-        returns: list of xarray datasets containing the requested data in tiled
-        sections.
+        Gets and returns data based on lat/long bounding box inputs.
+        All params are optional. Leaving one out will just query the dc without it, (eg leaving out
+        lat/lng but giving product returns dataset containing entire product.)
+
+        Args:
+            product (string): The name of the product associated with the desired dataset.
+            product_type (string): The type of product associated with the desired dataset.
+            platform (string): The platform associated with the desired dataset.
+            time (tuple): A tuple consisting of the start time and end time for the dataset.
+            longitude (tuple): A tuple of floats specifying the min,max longitude bounds.
+            latitude (tuple): A tuple of floats specifying the min,max latitutde bounds.
+            measurements (list): A list of strings that represents all measurements.
+            output_crs (string): Determines reprojection of the data before its returned
+            resolution (tuple): A tuple of min,max ints to determine the resolution of the data.
+
+        Returns:
+            data (xarray): dataset with the desired data in tiled sections.
         """
+
         # there is probably a better way to do this but I'm not aware of it.
         query = {}
         if product_type is not None:
@@ -178,36 +178,21 @@ class DataAccessApi:
 
     def get_scene_metadata(self, platform, product, longitude=None, latitude=None, crs=None, time=None):
         """
-        gets a descriptor based on a request.
-        params:
-            platform='LANDSAT_7'
-            product_type='LEDAPS'
-            longitude=(34,37)
-            latitude=(-1,0)
-            crs='EPSG:4326' -> describes the coordinate system of params lat and long
-            time=('1996-01-01', '2016-03-20')
-        returns: descriptor dict of the request metadata including:
-            product name
-                dimensions:
-                    x/long
-                    y/lat
-                    time
-                variables
-                    band name
-                        data type
-                        nodata val
-                result min: (x, y, t)
-                result max: (x, y, t)
-                result shape: (x, y, t)
-                storage units
-                    (x, y, t):
-                        min
-                        max
-                        shape
-                        path
-                .....
-                ....
+        Gets a descriptor based on a request.
+
+        Args:
+            platform (string): Platform for which data is requested
+            product_type (string): Product type for which data is requested
+            longitude (tuple): Tuple of min,max floats for longitude
+            latitude (tuple): Tuple of min,max floats for latitutde
+            crs (string): Describes the coordinate system of params lat and long
+            time (tuple): Tuple of start and end datetimes for requested data
+
+        Returns:
+            scene_metadata (dict): Dictionary containing a variety of data that can later be
+                                   accessed.
         """
+
         descriptor_request = {}
         if platform is not None:
             descriptor_request['platform'] = platform
@@ -230,7 +215,7 @@ class DataAccessApi:
 
         descriptor = self.api.get_descriptor(descriptor_request=descriptor_request)
         scene_metadata = {}
-        
+
         if product in descriptor and len(descriptor[product]['result_min']) > 2:
             scene_metadata['lat_extents'] = (descriptor[product]['result_min'][1], descriptor[product]['result_max'][1])
             scene_metadata['lon_extents'] = (descriptor[product]['result_min'][2], descriptor[product]['result_max'][2])
@@ -247,9 +232,20 @@ class DataAccessApi:
     def list_acquisition_dates(self, platform, product, longitude=None, latitude=None, crs=None, time=None):
         """
         Get a list of all acquisition dates for a query.
-        params are the same as the scene metadata, as it uses the same frameworks.
-        returns: python list of dates that can be used to query the dc for single time sliced data.
+
+        Args:
+            platform (string): Platform for which data is requested
+            product_type (string): Product type for which data is requested
+            longitude (tuple): Tuple of min,max floats for longitude
+            latitude (tuple): Tuple of min,max floats for latitutde
+            crs (string): Describes the coordinate system of params lat and long
+            time (tuple): Tuple of start and end datetimes for requested data
+
+        Returns:
+            times (list): Python list of dates that can be used to query the dc for single time
+                          sliced data.
         """
+
         metadata = self.get_scene_metadata(platform, product, longitude=longitude, latitude=latitude, crs=crs, time=time)
         #gets a list of times, corrected for utc offset.
         # (unit[0] + unit[0].utcoffset()) if unit[0].utcoffset() else
@@ -258,12 +254,16 @@ class DataAccessApi:
 
     def get_datacube_metadata(self, platform, product):
         """
-        gets some details on the cube and its contents.
-        required params:
-	    platform: "LANDSAT_7"
-	    product: ls7_ledaps
-        returns a dict with multiple keys containing relevant metadata.
+        Gets some details on the cube and its contents.
+
+        Args:
+	    platform (string): Desired platform for requested data.
+	    product (string): Desired product for requested data.
+
+        Returns:
+            datacube_metadata (dict): a dict with multiple keys containing relevant metadata.
         """
+
         descriptor = self.api.get_descriptor({'platform': platform})
         datacube_metadata = {}
         if product in descriptor:
