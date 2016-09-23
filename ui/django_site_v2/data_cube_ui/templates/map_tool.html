@@ -1,26 +1,25 @@
-<!-- 
-Copyright 2016 United States Government as represented by the Administrator 
+<!--
+Copyright 2016 United States Government as represented by the Administrator
 of the National Aeronautics and Space Administration. All Rights Reserved.
 
-Portion of this code is Copyright Geoscience Australia, Licensed under the 
-Apache License, Version 2.0 (the "License"); you may not use this file 
-except in compliance with the License. You may obtain a copy of the License 
+Portion of this code is Copyright Geoscience Australia, Licensed under the
+Apache License, Version 2.0 (the "License"); you may not use this file
+except in compliance with the License. You may obtain a copy of the License
 at
 
    http://www.apache.org/licenses/LICENSE-2.0
 
-The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 "License"); you may not use this file except in compliance with the License.
-You may obtain a copy of the License at 
-http://www.apache.org/licenses/LICENSE-2.0. 
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0.
 
-Unless required by applicable law or agreed to in writing, software 
-distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-License for the specific language governing permissions and limitations 
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations
 under the License.
 -->
-
 {% extends "default.html" %}
 
 {% block css %}
@@ -64,6 +63,8 @@ under the License.
       //holds Cesium map instance and all functs.related to mapping.
       var map;
 
+      window.tool_name = '{{ tool_name }}';
+
       //hardcoded kenya bounds.
       //TODO: Should I create a template for drawmap.js and put this there?
       //these are used for the mapping functions as well
@@ -96,6 +97,7 @@ under the License.
               {% for query in running_queries %}
                 var w = new Worker("/static/assets/js/dcw.js");
                 w.postMessage({
+                    'tool_name': window.tool_name,
                     'msg': "HISTORY",
                     'result_type': '{{ query.query_type }}',
                     'query_id': '{{ query.query_id }}',
@@ -198,7 +200,6 @@ under the License.
 
       //add a task bar that includes an updatable progress bar, title, and cancel button w/ onclick functions.
       function add_task_bar(id, description) {
-        console.log(id);
           var ih = "<li id='task_" + id + "'><label for='task_" + id + "'>" + description + "</label><button id='cancel_" + id + "' style='background:none; border:none; padding:0; margin:0; cursor:pointer;'>Cancel</button><div class='progressbar_" + id + "'></div></li>";
           $("#running_queries").append(ih);
           $("." + sanitize_id("progressbar_" + id)).progressbar({
@@ -207,10 +208,10 @@ under the License.
           $("#" + sanitize_id("cancel_" + id)).click(function(){
             workers[id].terminate();
             if(queries[id] != null)
-              $.post('/custom_mosaic_tool/cancel', {
+              $.post('/' + window.tool_name + '/cancel', {
                   'query_id': queries[id].query_id
               }, function(result) {
-                  console.log(result);
+                  //console.log(result);
               });
             remove_task_bar(id);
             remove_result(id);
@@ -298,10 +299,9 @@ under the License.
       }
 
       //adds a query to the map by its id. if boolean filled is true, use the filled version.
-      function add_result_to_map(query_id, filled) {
-          image_url = filled ? queries[query_id].image_filled_url : queries[query_id].image_url;
+      function add_result_to_map(query_id, image_url) {
           $("#static-map-img").attr("src", image_url);
-          map.insert_image_with_bounds(query_id, image_url, queries[query_id].latitude[0], queries[query_id].latitude[1], queries[query_id].longitude[0], queries[query_id].longitude[1]);
+          map.insert_image_with_bounds(query_id, image_url, queries[query_id].min_lat, queries[query_id].max_lat, queries[query_id].min_lon, queries[query_id].max_lon);
       }
 
       //removes a result from the map and modifies the queries and workers variables.
@@ -323,15 +323,6 @@ under the License.
         //map.toggle_outline_by_id(queries[query_id].query_id);
         map.toggle_visibility_by_id(queries[query_id].query_id, val);
       }
-
-      //toggles the nodata highlighting based on a checkbox.
-      //outline is shown as visible
-      function toggle_highlight_nodata(checkbox, query_id) {
-        map.remove_image_by_id(queries[query_id].query_id);
-        add_result_to_map(query_id, checkbox.checked);
-        map.toggle_outline_by_id(query_id, true);
-      }
-
       //End require
 
       //handles the messages posted by any number of workers responsible for
@@ -353,7 +344,7 @@ under the License.
               case "RESULT":
                   queries[data.query.query_id] = data.query;
                   remove_task_bar(data.query.query_id);
-                  add_result_to_map(data.query.query_id, false);
+                  add_result_to_map(data.query.query_id, data.query.image_url);
                   loadHistoryPanel();
                   loadResultsPanel();
                   loadOutputPanel();
@@ -391,10 +382,10 @@ under the License.
               values[field.name] = field.value;
           });
 
-          if (values['band_selection'] == null) {
+          /*if (values['band_selection'] == null) {
               alert('Please select at least a single band.')
               return;
-          }
+          }*/
 
           if (values['latitude_max'] == "" || values['latitude_min'] == "" || values['longitude_max'] == "" || values['longitude_min'] == "" || values['time_start'] == "" || values['time_end'] == "") {
               alert('Please fill out all query parameters')
@@ -411,11 +402,12 @@ under the License.
           }
 
           request = $(this).serialize() + "&platform=" + $('#satellite_sel').val() + "&area_id={{ area.area_id }}";
-          console.log(request)
+          //console.log(request)
           //worker init w/ the serialized data.
           if (typeof(Worker) !== undefined) {
               var w = new Worker("/static/assets/js/dcw.js");
               w.postMessage({
+                  'tool_name': window.tool_name,
                   'msg': "NEW",
                   'result_type': values['result_type'],
                   'form_data': request,
@@ -492,7 +484,7 @@ under the License.
                         {% for field in form.visible_fields %}
                           <li>
                             {% if field.help_text %}
-                              <div class="helper tooltipped" title="{{ field.help_text }}"><a>?</a></div> 
+                              <div class="helper tooltipped" title="{{ field.help_text }}"><a>?</a></div>
                             {% endif %}
                             {{ field.label_tag }}
                             {{ field }}
@@ -501,8 +493,8 @@ under the License.
                       </ul>
                       <br>
                       {% endfor %}
-		      <button id="additional-info" onclick="" type="button" class="submitBlock extra-class tooltipped" title="Add additional information includeing a title and description.">Additional Info</button>
-		      <input id="submit-request" type="submit" class="submitBlock tooltipped" title="Submit a new mosaic request using the above parameters" value="Submit New Request" />
+		      <button id="additional-info-{{ satellite }}" onclick="" type="button" class="submitBlock extra-class tooltipped" title="Add additional information includeing a title and description.">Additional Info</button>
+		      <input id="submit-request-{{ satellite }}" type="submit" class="submitBlock tooltipped" title="Submit a new mosaic request using the above parameters" value="Submit New Request" />
                 </form>
                 {% endfor %}
             </div>

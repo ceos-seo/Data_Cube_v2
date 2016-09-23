@@ -1,28 +1,23 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
-
-# Author: AHDS
-# Creation date: 2016-06-23
-# Modified by:
-# Last modified date:
 
 # Django specific
 from celery.decorators import task
@@ -44,6 +39,20 @@ from utils.dc_mosaic import create_mosaic_iterative
 from utils.dc_utilities import save_to_geotiff, create_cfmask_clean_mask
 from .utils import uniquify_list
 
+"""
+Class for handling loading celery workers to perform tasks asynchronously.
+"""
+
+# Author: AHDS
+# Creation date: 2016-06-23
+# Modified by:
+# Last modified date:
+
+# constants up top for easy access/modification
+# hardcoded colors input path..
+acquisitions_per_iteration = 1
+base_result_path = '/ui_results/custom_mosaic/'
+
 # Datacube instance to be initialized.
 # A seperate DC instance is created for each worker.
 dc = None
@@ -53,6 +62,10 @@ dc = None
 # accessing DC resources.
 @worker_process_init.connect
 def init_worker(**kwargs):
+    """
+    Creates an instance of the DataAccessApi worker.
+    """
+
     print("Creating DC instance for worker.")
     global dc
     dc = DataAccessApi()
@@ -60,20 +73,32 @@ def init_worker(**kwargs):
 
 @worker_process_shutdown.connect
 def shutdown_worker(**kwargs):
+    """
+    Deletes the instance of the DataAccessApi worker.
+    """
+
     print('Closing DC instance for worker.')
     global dc
     dc = None
 
-
-# Creates metadata and result objects from a query id.
-# gets the query, computes metadata for the parameters and saves the model.
-# uses the metadata to query the datacube for relevant data and creates the result.
-# results computed in single time slices for memory efficiency, pushed into a single numpy
-# array containing the total result. this is then used to create png/tifs to populate a result model.
-# result model is constantly updated with progress and checked for task
-# cancellation.
 @task(name="get_data_task")
 def create_cloudfree_mosaic(query_id, user_id):
+    """
+    Creates metadata and result objects from a query id. gets the query, computes metadata for the
+    parameters and saves the model. Uses the metadata to query the datacube for relevant data and
+    creates the result. Results computed in single time slices for memory efficiency, pushed into a
+    single numpy array containing the total result. this is then used to create png/tifs to populate
+    a result model. Result model is constantly updated with progress and checked for task
+    cancellation.
+
+    Args:
+        query_id (int): The ID of the query that will be created.
+        user_id (string): The ID of the user that requested the query be made.
+
+    Returns:
+        Doesn't return as the method is ran asynchronously.
+    """
+
     print("Starting for query:" + query_id)
     # its fair to assume that the query_id will exist at this point, as if it wasn't it wouldn't
     # start the task.
@@ -136,7 +161,6 @@ def create_cloudfree_mosaic(query_id, user_id):
         # Uses a time range computed with the index and index+acquisitions_per_iteration.
         # ensures that the start and end are both valid.
         print("Getting data and creating mosaic")
-        acquisitions_per_iteration = 1
         index = 0
         # holds some acquisition based metadata.
         acquisition_dates = ""
@@ -199,10 +223,6 @@ def create_cloudfree_mosaic(query_id, user_id):
             meta.clean_pixel_count / meta.pixel_count) * 100
         meta.save()
 
-        # all data has been processed, create results and finish up.
-        query.complete = True
-        query.save()
-
         #grabs the resolution.
         product_details = dc.dc.list_products()[dc.dc.list_products().name==query.product]
         geotransform = [single_data.longitude.values[0], product_details.resolution.values[0][1],
@@ -210,7 +230,7 @@ def create_cloudfree_mosaic(query_id, user_id):
 
         crs = str(single_data.crs)
 
-        file_path = '/tilestore/result/' + query_id
+        file_path = base_result_path + query_id
         tif_path = file_path + '.tif'
         png_path = file_path + '.png'
         png_filled_path = file_path + "_filled.png"
@@ -237,6 +257,8 @@ def create_cloudfree_mosaic(query_id, user_id):
         result.status = "OK"
         result.save()
         print("Finished processing results")
+        # all data has been processed, create results and finish up.
+        query.complete = True
         query.query_end = datetime.datetime.now()
         query.save()
 
@@ -247,9 +269,19 @@ def create_cloudfree_mosaic(query_id, user_id):
 
     return
 
-# Errors out under specific circumstances, used to pass error msgs to user.
-# uses the result path as a message container: TODO? Change this.
 def error_with_message(result, message):
+    """
+    Errors out under specific circumstances, used to pass error msgs to user. Uses the result path as
+    a message container: TODO? Change this.
+
+    Args:
+        result (Result): The current result of the query being ran.
+        message (string): The message to be stored in the result object.
+
+    Returns:
+        Nothing is returned as the method is ran asynchronously.
+    """
+
     result.status = "ERROR"
     result.result_path = message
     result.save()
