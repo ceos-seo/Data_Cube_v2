@@ -1,29 +1,29 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
 
 
 # Author: KMF
 # Creation date: 2016-08-10
 # Modified by:
-# Last modified date: 
+# Last modified date:
 
 from ipywidgets import widgets
 from IPython.display import display, HTML
@@ -35,60 +35,60 @@ import math # ceil
 def create_acq_date_gui(acq_dates):
     """
     Description:
-      
+
     -----
     """
-    
+
     # Create widget
     acq_date_sel = widgets.Dropdown(options=acq_dates,
                                     values=acq_dates)
-    
+
     # Display form
     display(widgets.Label('Acquisition Date: '), acq_date_sel)
-    
+
     return acq_date_sel
-    
+
 
 def create_platform_product_gui(platforms, products):
     """
     Description:
-      
+
     -----
     """
-    
+
     # Create widgets
-    platform_sel = widgets.Dropdown(options=platforms, 
+    platform_sel = widgets.Dropdown(options=platforms,
                                     values=platforms)
     product_sel = widgets.Dropdown(options=products,
                                    values=products)
-    
+
     # Display form
     display(widgets.Label('Platform: '), platform_sel)
     display(widgets.Label('Product: '), product_sel)
-    
-    return [platform_sel, 
+
+    return [platform_sel,
             product_sel]
 
 def create_extents_gui(min_date, max_date, min_lon, max_lon, min_lat, max_lat):
     """
     Description:
-      
+
     -----
     """
-    
-    # Create widgets 
-    start_date_text = widgets.Text() 
-    end_date_text = widgets.Text() 
 
-    min_lon_text = widgets.BoundedFloatText(min=min_lon, 
+    # Create widgets
+    start_date_text = widgets.Text()
+    end_date_text = widgets.Text()
+
+    min_lon_text = widgets.BoundedFloatText(min=min_lon,
                                             max=max_lon)
-    max_lon_text = widgets.BoundedFloatText(min=min_lon, 
-                                            max=max_lon, 
+    max_lon_text = widgets.BoundedFloatText(min=min_lon,
+                                            max=max_lon,
                                             value=min_lon_text.value + 1)
-    min_lat_text = widgets.BoundedFloatText(min=min_lat, 
+    min_lat_text = widgets.BoundedFloatText(min=min_lat,
                                             max=max_lat)
-    max_lat_text = widgets.BoundedFloatText(min=min_lat, 
-                                            max=max_lat, 
+    max_lat_text = widgets.BoundedFloatText(min=min_lat,
+                                            max=max_lat,
                                             value=min_lat_text.value + 1)
 
     # Display form
@@ -99,12 +99,12 @@ def create_extents_gui(min_date, max_date, min_lon, max_lon, min_lat, max_lat):
     display(widgets.Label('Max lon: '), max_lon_text)
     display(widgets.Label('Min lat: '), min_lat_text)
     display(widgets.Label('Max lat: '), max_lat_text)
-    
-    return [start_date_text, 
+
+    return [start_date_text,
             end_date_text,
-            min_lon_text, 
+            min_lon_text,
             max_lon_text,
-            min_lat_text, 
+            min_lat_text,
             max_lat_text]
 
 def generate_metadata_report(min_date, max_date, min_lon, max_lon, lon_dist, min_lat, max_lat, lat_dist):
@@ -122,7 +122,7 @@ def generate_metadata_report(min_date, max_date, min_lon, max_lon, lon_dist, min
 
     display(HTML('<h2>Metadata Report: </h2>'))
     display(HTML(metadata_report))
-    
+
 def show_map_extents(min_lon, max_lon, min_lat, max_lat):
     extents=(
         min_lat,
@@ -177,4 +177,3 @@ def show_map_extents(min_lon, max_lon, min_lat, max_lat):
     # map.nightshade(datetime.now(), delta=0.2) # Draw day/night areas
 
     plt.show()
-    

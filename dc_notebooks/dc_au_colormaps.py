@@ -1,28 +1,28 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
 
 # Author: AC
 # Creation date: 2016-07-29
 # Modified by:
-# Last modified date: 
+# Last modified date:
 
 # Utility file - adds some colormaps to matplotlib's built-in collection.  Currently, they include:
 # - Australian
@@ -48,7 +48,7 @@ def htmlColorMap(html,step=False,name='customColorMap'):
 
     stops = [(float(s)-stop_min)/(stop_max-stop_min) for s in stops] # Normalize
     cols = [matplotlib.colors.hex2color(c) for c in cols] # Convert html to (r,g,b)
-    
+
     # Smooth gradient
     if (step==False):
         for i, item in enumerate(stops):

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+
+
+sudo -u data_cube_user dropdb datacube
+sudo -u data_cube_user createdb datacube
+datacube system init
+
+datacube product add dataset_type.yaml
+datacube dataset add LE71690602005008-SC20160426142017/ --auto-match
+datacube ingest -c ingestion_config.yaml 
+
+

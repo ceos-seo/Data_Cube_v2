@@ -1,28 +1,23 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
-
-# Author: KMF
-# Creation date: 2016-06-13
-# Modified by:
-# Last modified date: 
 
 import gc
 import numpy as np
@@ -38,16 +33,19 @@ import collections
 import gdal
 from datetime import datetime
 
+# Author: KMF
+# Creation date: 2016-06-13
+
 def wofs_classify(dataset_in, clean_mask=None, no_data=-9999, enforce_float64=False):
     """
     Description:
       Performs WOfS algorithm on given dataset. If no clean mask is given, the 'cf_mask'
-      variable must be included in the input dataset, as it will be used to create a 
+      variable must be included in the input dataset, as it will be used to create a
       clean mask
     Assumption:
-      - The WOfS algorithm is defined for Landsat 5/Landsat 7 
+      - The WOfS algorithm is defined for Landsat 5/Landsat 7
     References:
-      - Mueller, et al. (2015) "Water observations from space: Mapping surface water from 
+      - Mueller, et al. (2015) "Water observations from space: Mapping surface water from
         25 years of Landsat imagery across Australia." Remote Sensing of Environment.
       - https://github.com/GeoscienceAustralia/eo-tools/blob/stable/eotools/water_classifier.py
     -----
@@ -66,30 +64,30 @@ def wofs_classify(dataset_in, clean_mask=None, no_data=-9999, enforce_float64=Fa
     Output:
       dataset_out (xarray.DataArray) - wofs water classification results: 0 - not water; 1 - water
     """
-    
+
     def _band_ratio(a, b):
         """
         Calculates a normalized ratio index
         """
         return (a - b) / (a + b)
-        
+
     def _run_regression(band1, band2, band3, band4, band5, band7):
         """
         Regression analysis based on Australia's training data
         TODO: Return type
         """
-        
+
         # Compute normalized ratio indices
         ndi_52 = _band_ratio(band5, band2)
         ndi_43 = _band_ratio(band4, band3)
         ndi_72 = _band_ratio(band7, band2)
-        
+
         #classified = np.ones(shape, dtype='uint8')
-        
+
         classified = np.full(shape, no_data)
-      
+
         # Start with the tree's left branch, finishing nodes as needed
-        
+
         # Left branch
         r1 = ndi_52 <= -0.01
 
@@ -134,7 +132,7 @@ def wofs_classify(dataset_in, clean_mask=None, no_data=-9999, enforce_float64=Fa
         # Left branch complete; cleanup
         del r2, r3, r4, r5, r6, r7, r8, r9, r10
         gc.collect()
-        
+
         # Right branch of regression tree
         r1 = ~r1
 
@@ -197,9 +195,9 @@ def wofs_classify(dataset_in, clean_mask=None, no_data=-9999, enforce_float64=Fa
         classified[_tmp & ~r22] = 0 #Node 45
 
         # Completed regression tree
-        
+
         return classified
-    
+
     # Extract dataset bands needed for calculations
     blue = dataset_in.blue
     green = dataset_in.green
@@ -207,12 +205,12 @@ def wofs_classify(dataset_in, clean_mask=None, no_data=-9999, enforce_float64=Fa
     nir = dataset_in.nir
     swir1 = dataset_in.swir1
     swir2 = dataset_in.swir2
-    
+
     # Create a clean mask from cfmask if the user does not provide one
     if not clean_mask:
         cfmask = dataset_in.cf_mask
         clean_mask = utilities.create_cfmask_clean_mask(cfmask)
-    
+
     # Enforce float calculations - float64 if user specified, otherwise float32 will do
     dtype = blue.values.dtype # This assumes all dataset bands will have
                               # the same dtype (should be a reasonable
@@ -236,90 +234,90 @@ def wofs_classify(dataset_in, clean_mask=None, no_data=-9999, enforce_float64=Fa
             nir.values = nir.values.astype('float32')
             swir1.values = swir1.values.astype('float32')
             swir2.values = swir2.values.astype('float32')
-    
+
     shape = blue.values.shape
-    classified = _run_regression(blue.values, green.values, red.values, 
+    classified = _run_regression(blue.values, green.values, red.values,
                                  nir.values, swir1.values, swir2.values)
 
     classified_clean = np.full(classified.shape, no_data)
     classified_clean[clean_mask] = classified[clean_mask] # Contains data for clear pixels
-    
+
     # Create xarray of data
     time = dataset_in.time
     latitude = dataset_in.latitude
     longitude = dataset_in.longitude
-    
+
     data_array = xr.DataArray(classified_clean,
                               coords=[time, latitude, longitude],
                               dims=['time', 'latitude', 'longitude'])
-    
+
     dataset_out = xr.Dataset({'wofs': data_array},
                              coords={'time': time,
                                      'latitude': latitude,
                                      'longitude': longitude})
-                                     
+
     return dataset_out
 
 def ledaps_classify(water_band, qa_bands, no_data=-9999):
     #TODO: refactor for input/output datasets
-    
+
     fill_qa = qa_bands[0]
     cloud_qa = qa_bands[1]
     cloud_shadow_qa = qa_bands[2]
     adjacent_cloud_qa = qa_bands[3]
     snow_qa = qa_bands[4]
     ddv_qa = qa_bands[5]
-    
-    fill_mask = np.reshape(np.in1d(fill_qa.reshape(-1), [0]), 
-                           fill_qa.shape)                  
-    cloud_mask = np.reshape(np.in1d(cloud_qa.reshape(-1), [0]), 
-                            cloud_qa.shape)                              
-    cloud_shadow_mask = np.reshape(np.in1d(cloud_shadow_qa.reshape(-1), [0]), 
+
+    fill_mask = np.reshape(np.in1d(fill_qa.reshape(-1), [0]),
+                           fill_qa.shape)
+    cloud_mask = np.reshape(np.in1d(cloud_qa.reshape(-1), [0]),
+                            cloud_qa.shape)
+    cloud_shadow_mask = np.reshape(np.in1d(cloud_shadow_qa.reshape(-1), [0]),
                                    cloud_shadow_qa.shape)
-    adjacent_cloud_mask = np.reshape(np.in1d(adjacent_cloud_qa.reshape(-1), [255]), 
-                                     adjacent_cloud_qa.shape)                 
-    snow_mask = np.reshape(np.in1d(snow_qa.reshape(-1), [0]), 
+    adjacent_cloud_mask = np.reshape(np.in1d(adjacent_cloud_qa.reshape(-1), [255]),
+                                     adjacent_cloud_qa.shape)
+    snow_mask = np.reshape(np.in1d(snow_qa.reshape(-1), [0]),
                            snow_qa.shape)
-    ddv_mask = np.reshape(np.in1d(ddv_qa.reshape(-1), [0]), 
+    ddv_mask = np.reshape(np.in1d(ddv_qa.reshape(-1), [0]),
                           ddv_qa.shape)
-        
+
     clean_mask = fill_mask & cloud_mask & cloud_shadow_mask & adjacent_cloud_mask & snow_mask & ddv_mask
-    
-    water_mask = np.reshape(np.in1d(water_band.reshape(-1), [255]), 
+
+    water_mask = np.reshape(np.in1d(water_band.reshape(-1), [255]),
                                     water_band.shape) #Will be true if 255 -> water
-                                    
+
     classified = np.copy(water_mask)
     classified.astype(int)
-    
+
     classified_clean = np.full(classified.shape, no_data)
     classified_clean[clean_mask] = classified[clean_mask]
-    
+
     return classified_clean
 
 def cfmask_classify(cfmask, no_data=-9999):
     #TODO: refactor for input/output datasets
-    
-    clean_mask = np.reshape(np.in1d(cfmask.reshape(-1), [2, 3, 4, 255], invert=True), 
+
+    clean_mask = np.reshape(np.in1d(cfmask.reshape(-1), [2, 3, 4, 255], invert=True),
                             cfmask.shape)
-                            
-    water_mask = np.reshape(np.in1d(cfmask.reshape(-1), [1]), 
+
+    water_mask = np.reshape(np.in1d(cfmask.reshape(-1), [1]),
                             cfmask.shape)
-                            
+
     classified = np.copy(water_mask)
     classified.astype(int)
-    
+
     classified_clean = np.full(classified.shape, no_data)
     classified_clean[clean_mask] = classified[clean_mask]
-    
-    return classified_clean    
 
-def main(classifier, platform, product_type, 
-         min_lon, max_lon, min_lat, max_lat, 
+    return classified_clean
+
+def main(classifier, platform, product_type,
+         min_lon, max_lon, min_lat, max_lat,
          start_date, end_date, dc_config):
     """
-    Description: 
+    Description:
       Command-line water detection tool - creates a time-series from
-        water analysis performed on data retrieved by the Data Cube, 
+        water analysis performed on data retrieved by the Data Cube,
         shows plots of the normalized water observations (total water
         observations / total clear observations), total water observations,
         and total clear observations, and saves a GeoTIFF of the results
@@ -335,86 +333,86 @@ def main(classifier, platform, product_type,
       max_lat (str)
       start_date (str)
       end_date (str)
-      dc_config (str) 
+      dc_config (str)
     """
-    
+
     # Initialize data cube object
     dc = datacube.Datacube(config=dc_config,
                            app='dc-mosaicker')
 
     # Validate arguments
     if classifier not in ['cfmask', 'ledaps', 'wofs']:
-        print 'ERROR: Unknown water classifier. Classifier options: cfmask, ledaps, wofs'
+        print('ERROR: Unknown water classifier. Classifier options: cfmask, ledaps, wofs')
         return
-        
+
     products = dc.list_products()
     platform_names = set([product[6] for product in products.values])
     if platform not in platform_names:
-        print 'ERROR: Invalid platform.'
-        print 'Valid platforms are:'
+        print('ERROR: Invalid platform.')
+        print('Valid platforms are:')
         for name in platform_names:
-            print name
+            print(name)
         return
-        
+
     product_names = [product[0] for product in products.values]
     if product_type not in product_names:
-        print 'ERROR: Invalid product type.'
-        print 'Valid product types are:'
+        print('ERROR: Invalid product type.')
+        print('Valid product types are:')
         for name in product_names:
-            print name
+            print(name)
         return
-        
+
     try:
         min_lon = float(args.min_lon)
         max_lon = float(args.max_lon)
         min_lat = float(args.min_lat)
         max_lat = float(args.max_lat)
     except:
-        print 'ERROR: Longitudes/Latitudes must be float values'
+        print('ERROR: Longitudes/Latitudes must be float values')
         return
-        
+
     try:
         start_date_str = start_date
         end_date_str = end_date
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
     except:
-        print 'ERROR: Invalid date format. Date format: YYYY-MM-DD'
+        print('ERROR: Invalid date format. Date format: YYYY-MM-DD')
         return
-        
+
     if not os.path.exists(dc_config):
-        print 'ERROR: Invalid file path for dc_config'
+        print('ERROR: Invalid file path for dc_config')
         return
-    
+
     # Retrieve data from Data Cube
     dataset_in = dc.load(platform=platform,
                          product=product_type,
                          time=(start_date, end_date),
                          lon=(min_lon, max_lon),
                          lat=(min_lat, max_lat))
-        
+
     # Get information needed for saving as GeoTIFF
-    
+
     # Spatial ref
     crs = dataset_in.crs
     spatial_ref = utilities.get_spatial_ref(crs)
-    
+
     # Upper left coordinates
     ul_lon = dataset_in.longitude.values[0]
     ul_lat = dataset_in.latitude.values[0]
-    
+
     # Resolution
     products = dc.list_products()
     resolution = products.resolution[products.name == 'ls7_ledaps']
     lon_dist = resolution.values[0][1]
     lat_dist = resolution.values[0][0]
-    
-    # Rotation 
+
+    # Rotation
     lon_rtn = 0
     lat_rtn = 0
-    
+
     geotransform = (ul_lon, lon_dist, lon_rtn, ul_lat, lat_rtn, lat_dist)
-    
+
     # Run desired classifier
     water_class = None
     if classifier == 'cfmask': #TODO: implement when cfmask_classify is refactored
@@ -423,23 +421,23 @@ def main(classifier, platform, product_type,
         return
     elif classifier == 'wofs':
         water_class = wofs_classify(dataset_in)
-        
+
     dataset_out = utilities.perform_timeseries_analysis(water_class)
-    
-    print dataset_out
-    
+
+    print(dataset_out)
+
     out_file = ( str(min_lon) + '_' + str(min_lat) + '_'
                + start_date_str + '_' + end_date_str
                + '_' + classifier + '_.tif' )
-    
-    utilities.save_to_geotiff(out_file, gdal.GDT_Float32, 
-                              dataset_out, 
+
+    utilities.save_to_geotiff(out_file, gdal.GDT_Float32,
+                              dataset_out,
                               geotransform, spatial_ref)
-                                      
+
 if __name__ == '__main__':
-    
+
     start_time = datetime.now()
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument('classifier', help='Water classifier; options: cfmask, ledaps, wofs')
     parser.add_argument('platform', help='Data platform; example: LANDSAT_7')
@@ -451,15 +449,15 @@ if __name__ == '__main__':
     parser.add_argument('start_date', help='Start date; format: YYYY-MM-DD')
     parser.add_argument('end_date', help='End date; format: YYYY-MM-DD')
     parser.add_argument('dc_config', nargs='?', default='~/.datacube.conf', help='Datacube configuration path; default: ~/.datacube.conf')
-    
+
     args = parser.parse_args()
 
-    main(args.classifier, 
-         args.platform, args.product, 
-         args.min_lon, args.max_lon, 
-         args.min_lat, args.max_lat, 
-         args.start_date, args.end_date, 
+    main(args.classifier,
+         args.platform, args.product,
+         args.min_lon, args.max_lon,
+         args.min_lat, args.max_lat,
+         args.start_date, args.end_date,
          args.dc_config)
-    
+
     end_time = datetime.now()
-    print 'Execution time: ' + str(end_time - start_time)
+    print('Execution time: ' + str(end_time - start_time))

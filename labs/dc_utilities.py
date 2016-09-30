@@ -1,28 +1,23 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
-
-# Author: KMF
-# Creation date: 2016-06-13
-# Modified by:
-# Last modified date: 
 
 import gdal, osr
 import numpy as np
@@ -31,6 +26,9 @@ import collections
 from datetime import datetime
 
 import datacube
+
+# Author: KMF
+# Creation date: 2016-06-13
 
 """
 General-use functions
@@ -87,14 +85,14 @@ def perform_timeseries_analysis(dataset_in, no_data=-9999):
     Input:
       dataset_in (xarray.DataSet) - dataset with one variable to perform timeseries on
     Output:
-      dataset_out (xarray.DataSet) - dataset containing 
+      dataset_out (xarray.DataSet) - dataset containing
         variables: normalized_data, total_data, total_clean
     """
-    
-    data_vars = dataset_in.data_vars
-    key = data_vars.keys()[0]
-    
-    data = data_vars[key]
+
+    data_vars = list(dataset_in.data_vars)
+    key = data_vars[0]
+
+    data = dataset_in[key]
 
     #shape = data.shape[1:]
 
@@ -108,7 +106,7 @@ def perform_timeseries_analysis(dataset_in, no_data=-9999):
     time = data.time
     latitude = data.latitude
     longitude = data.longitude
-    
+
     # Masking no data values then converting boolean to int for easy summation
     clean_data_raw = np.reshape(np.in1d(data.values.reshape(-1), [no_data], invert=True),
                                         data.values.shape).astype(int)
@@ -120,7 +118,7 @@ def perform_timeseries_analysis(dataset_in, no_data=-9999):
     clean_data_sum = clean_data.sum('time')
 
     processed_data_normalized = processed_data_sum/clean_data_sum
-    
+
     dataset_out = xr.Dataset(collections.OrderedDict([('normalized_data', (['latitude', 'longitude'], processed_data_normalized)),
                                                       ('total_data', (['latitude', 'longitude'], processed_data_sum)),
                                                       ('total_clean', (['latitude', 'longitude'], clean_data_sum))]),
@@ -146,7 +144,7 @@ def save_to_geotiff(out_file, data_type, dataset_in, geotransform, spatial_ref,
       y_pixels (int) - num pixels in y direction
       no_data (int/float) - no data value
     """
-    
+
     data_vars = dataset_in.data_vars
     driver = gdal.GetDriverByName('GTiff')
     raster = driver.Create(out_file, x_pixels, y_pixels, len(data_vars), data_type)

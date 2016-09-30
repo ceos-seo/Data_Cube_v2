@@ -1,10 +1,10 @@
 source_type: ls7_ledaps_utm36_scene
-output_type: ls7_ledaps_kenya
+output_type: ls7_ledaps_lake_baringo
 
 description: Landsat 7 LEDAPS 30 metre, 1deg tile, WGS84 projection (EPSG:4326)
 
-location: '/micro_cube/ingested_data'
-file_path_template: 'LS7_ETM_LEDAPS/Kenya/LS7_ETM_LEDAPS_4326_{tile_index[0]}_{tile_index[1]}_{start_time}.nc'
+location: '/datacube/ingested_data'
+file_path_template: 'LS7_ETM_LEDAPS/Lake_Baringo/LS7_ETM_LEDAPS_4326_{tile_index[0]}_{tile_index[1]}_{start_time}.nc'
 global_attributes:
   title: CEOS Data Cube Landsat Surface Reflectance
   summary: Landsat 7 Enhanced Thematic Mapper Plus Analysis Ready data prepared by NASA on behalf of CEOS.
@@ -26,18 +26,18 @@ global_attributes:
   acknowledgment: Landsat data is provided by the United States Geological Survey (USGS).
 
 ingestion_bounds: # Specified in Storage CRS coordinates. Will expand to tile boundaries.
-  left: 30
-  bottom: -3
-  right: 40
-  top: 3
+  left: 36.01
+  bottom: 0.51
+  right: 36.24
+  top: 0.74
 
 storage:
   driver: NetCDF CF
 
   crs: EPSG:4326
   tile_size:
-          longitude: 1.0
-          latitude: 1.0
+          longitude: 0.25
+          latitude: 0.25
   resolution:
           longitude: 0.000269493
           latitude: -0.000269493

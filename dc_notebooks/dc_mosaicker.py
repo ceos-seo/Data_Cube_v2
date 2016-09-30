@@ -1,28 +1,28 @@
-# Copyright 2016 United States Government as represented by the Administrator 
+# Copyright 2016 United States Government as represented by the Administrator
 # of the National Aeronautics and Space Administration. All Rights Reserved.
 #
-# Portion of this code is Copyright Geoscience Australia, Licensed under the 
-# Apache License, Version 2.0 (the "License"); you may not use this file 
-# except in compliance with the License. You may obtain a copy of the License 
+# Portion of this code is Copyright Geoscience Australia, Licensed under the
+# Apache License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the License
 # at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the 
+#
+# The CEOS 2 platform is licensed under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at 
-# http://www.apache.org/licenses/LICENSE-2.0. 
-# 
-# Unless required by applicable law or agreed to in writing, software 
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
-# License for the specific language governing permissions and limitations 
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
 # under the License.
 
 # Author: KMF
 # Creation date: 2016-06-14
 # Modified by:
-# Last modified date: 
+# Last modified date:
 
 import numpy as np
 import xarray as xr
@@ -36,6 +36,9 @@ import os
 import collections
 import gdal
 from datetime import datetime
+
+# Author: KMF
+# Creation date: 2016-06-14
 
 def create_mosaic(dataset_in, clean_mask=None, no_data=-9999):
     """
@@ -68,7 +71,7 @@ def create_mosaic(dataset_in, clean_mask=None, no_data=-9999):
     data_vars = dataset_in.data_vars # Dict object with key as the name of the variable
                                      # and each value as the DataArray of that variable
 
-    mosaic = collections.OrderedDict() # Dict to contain variable names as keys and 
+    mosaic = collections.OrderedDict() # Dict to contain variable names as keys and
                                        # numpy arrays containing mosaicked data
     for key in data_vars:
         # Get raw data for current variable and mask the data

@@ -1,36 +1,51 @@
-source_type: ls7_ledaps_utm36_scene
-output_type: ls7_ledaps_kenya_utm36
+source_type: ls7_ledaps_utm18_scene
+output_type: ls7_ledaps_colombia
 
-description: LS7 LEDAPS 30 metre, 100km tile, WGS84 projection
+description: Landsat 7 LEDAPS 30 metre, 1deg tile, WGS84 projection (EPSG:4326)
 
-location: '/tilestore'
-file_path_template: 'LS7_ETM_LEDAPS/LS7_LEDAPS_4327_{tile_index[0]}_{tile_index[1]}_{start_time}.nc'
+location: '/datacube/ingested_data'
+file_path_template: 'LS7_ETM_LEDAPS/Colombia/LS7_ETM_LEDAPS_4326_{tile_index[0]}_{tile_index[1]}_{start_time}.nc'
 global_attributes:
-  title: Experimental Data files From the Australian Geoscience Data Cube - DO NOT USE - Updated by CEOS 4/26/16 to handle WGS 84 USGS SR products
-  summary: These files are experimental, short lived, and the format will change.
-  source: This data is a reprojection and retile of Landsat surface reflectance data from the USGS
-  product_version: '0.0.0'
-  license: Creative Commons Attribution 4.0 International CC BY 4.0
+  title: CEOS Data Cube Landsat Surface Reflectance
+  summary: Landsat 7 Enhanced Thematic Mapper Plus Analysis Ready data prepared by NASA on behalf of CEOS.
+  source: Surface reflectance from LEDAPS
+  institution: CEOS
+  instrument: ETM
+  cdm_data_type: Grid
+  keywords: AU/GA,NASA/GSFC/SED/ESD/LANDSAT,REFLECTANCE,ETM+,TM,OLI,EARTH SCIENCE
+  keywords_vocabulary: GCMD
+  platform: LANDSAT-7
+  processing_level: L2
+  product_version: '2.0.0'
+  product_suite: USGS Landsat
+  project: CEOS
+  coverage_content_type: physicalMeasurement
+  references: http://dx.doi.org/10.3334/ORNLDAAC/1146
+  license: https://creativecommons.org/licenses/by/4.0/
+  naming_authority: gov.usgs
+  acknowledgment: Landsat data is provided by the United States Geological Survey (USGS).
 
 ingestion_bounds: # Specified in Storage CRS coordinates. Will expand to tile boundaries.
-  left: -2700000
-  bottom: -5100000
-  right: 2600000
-  top: -1270000
+  #colombia - just the mini cube:
+  left: -80
+  bottom: -2
+  right: -70
+  top: 2
 
 storage:
   driver: NetCDF CF
 
-  crs: EPSG:32636
+  crs: EPSG:4326
   tile_size:
-      x: 120000.0
-      y: 120000.0
+          longitude: 1.0
+          latitude: 1.0
   resolution:
-      x : 30
-      y: -30
+          #colombia (1/length of 1 degree in meters there / 30 meters per pixel
+          longitude: 0.00027129759
+          latitude: -0.00027129759
   chunking:
-      longitude: 500
-      latitude: 500
+      longitude: 200
+      latitude: 200
       time: 1
   dimension_order: ['time', 'latitude', 'longitude']
 
