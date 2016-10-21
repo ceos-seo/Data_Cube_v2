@@ -39,8 +39,8 @@ under the License.
           <td class="right_aligned_text">({{ query.time_start|date:"m/d/Y" }}, {{ query.time_end|date:"m/d/Y" }})</td>
         </tr>
         <tr>
-          <td class="title">Bands:</td>
-          <td class="right_aligned_text">{{ query.measurements }}</td>
+          <td class="title">Compositing Method:</td>
+          <td class="right_aligned_text">{{ query.get_compositor_name }}</td>
         </tr>
         <tr>
           <td class="title">Description:</td>

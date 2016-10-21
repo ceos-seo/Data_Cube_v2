@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 
 from apps.custom_mosaic_tool.models import Result as cm_result, Query as cm_query, Metadata as cm_meta
 from apps.water_detection.models import Query as wd_query, Result as wd_result, Metadata as wd_meta
+from apps.tsm.models import Query as tsm_query, Result as tsm_result, Metadata as tsm_meta
 
 from collections import OrderedDict
 
@@ -106,21 +107,14 @@ def get_task_manager(request, app_id):
     headers_dictionary = OrderedDict()
     data_dictionary = OrderedDict()
 
-    if app_id == "custom_mosaic_tool":
-        headers_dictionary = build_headers_dictionary(cm_query)
-        for query in cm_query.objects.all().order_by('-query_start')[:100]:
-            data = list()
-            for v in headers_dictionary['ModelBase']:
-                data.append(str(query.__dict__[v]))
-                data_dictionary[query] = data
+    queries = cm_query if app_id == "custom_mosaic_tool" else wd_query if app_id == "water_detection" else tsm_query
 
-    elif app_id == "water_detection":
-        headers_dictionary = build_headers_dictionary(wd_query)
-        for query in wd_query.objects.all().order_by('-query_start')[:100]:
-            data = list()
-            for v in headers_dictionary['ModelBase']:
-                data.append(str(query.__dict__[v]))
-                data_dictionary[query] = data
+    headers_dictionary = build_headers_dictionary(queries)
+    for query in queries.objects.all().order_by('-query_start')[:100]:
+        data = list()
+        for v in headers_dictionary['ModelBase']:
+            data.append(str(query.__dict__[v]))
+            data_dictionary[query] = data
 
     formatted_headers_dictionary = OrderedDict()
     formatted_headers_dictionary['Query'] = format_headers(headers_dictionary)
@@ -137,7 +131,7 @@ def get_task_manager(request, app_id):
 
 
 @login_required
-def get_query_details(request, application_id, requested_query_id):
+def get_query_details(request, app_id, requested_query_id):
     """
     Returns the rendered html with appropriate data for a Query and its Metadata and Results.
     Requires an ID to be passed from the previous page.
@@ -156,27 +150,19 @@ def get_query_details(request, application_id, requested_query_id):
     :template:`custom_mosaic_tool/query_details.html`
     """
 
-    if application_id == "custom_mosaic_tool":
-        query = cm_query.objects.get(id=requested_query_id)
-        metadata = cm_meta.objects.get(query_id=query.query_id)
-        result = cm_result.objects.get(query_id=query.query_id)
-        context = {
-            'query': query,
-            'metadata': metadata,
-            'result': result,
-        }
+    queries = cm_query if app_id == "custom_mosaic_tool" else wd_query if app_id == "water_detection" else tsm_query
+    metas = cm_meta if app_id == "custom_mosaic_tool" else wd_meta if app_id == "water_detection" else tsm_meta
+    results = cm_result if app_id == "custom_mosaic_tool" else wd_result if app_id == "water_detection" else tsm_result
+    template = 'custom_mosaic_tool/query_details.html' if app_id == "custom_mosaic_tool" else 'water_detection/query_details.html' if app_id == "water_detection" else 'tsm/query_details.html'
 
-        return render(request, 'custom_mosaic_tool/query_details.html', context)
+    query = queries.objects.get(id=requested_query_id)
+    metadata = metas.objects.get(query_id=query.query_id)
+    result = results.objects.get(query_id=query.query_id)
 
-    elif application_id == "water_detection":
-        query = wd_query.objects.get(id=requested_query_id)
-        metadata = wd_meta.objects.get(query_id=query.query_id)
-        result = wd_result.objects.get(query_id=query.query_id)
+    context = {
+        'query': query,
+        'metadata': metadata,
+        'result': result,
+    }
 
-        context = {
-            'query': query,
-            'metadata': metadata,
-            'result': result,
-        }
-
-        return render(request, 'water_detection/query_details.html', context)
+    return render(request, template, context)

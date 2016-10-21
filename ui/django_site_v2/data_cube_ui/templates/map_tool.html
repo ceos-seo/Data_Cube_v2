@@ -452,11 +452,19 @@ under the License.
 <div id="main-content">
     <div id="tabs_main">
         <ul>
+            {% if info_panel %}
+            <li class="tooltipped" title="Information and references for this tool"><a href="#infoPanel"><span>Information</span></a></li>
+            {% endif %}
             <li class="tooltipped" title="Filters for Datacube requests"><a href="#optionsPanel"><span>Filters</span></a></li>
             <li class="tooltipped" title="View request results"><a href="#resultsPanel"><span>Results</span></a></li>
             <li class="tooltipped" title="Save and download request results"><a href="#outputPanel"><span>Output</span></a></li>
         </ul>
         <!--left side options panel -->
+        {% if info_panel %}
+        <div id="infoPanel" class="tabCustomPanel">
+            {% include info_panel %}
+        </div>
+        {% endif %}
         <div id="optionsPanel" class="tabCustomPanel">
             <h2>Filters</h2>
             <hr>

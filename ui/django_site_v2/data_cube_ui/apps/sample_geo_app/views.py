@@ -266,7 +266,7 @@ def get_query_history(request, area_id):
     context = {
         'query_history': history,
     }
-    return render(request, 'query_history.html', context)
+    return render(request, 'sample_geo_app/query_history.html', context)
 
 @login_required
 def get_results_list(request, area_id):
@@ -303,7 +303,7 @@ def get_results_list(request, area_id):
             'queries': queries,
             'metadata_entries': metadata_entries
         }
-        return render(request, 'results_list.html', context)
+        return render(request, 'sample_geo_app/results_list.html', context)
     return HttpResponse("Invalid Request.")
 
 @login_required
@@ -342,5 +342,5 @@ def get_output_list(request, area_id):
             #'metadata_entries': metadata_entries
             'data': data
         }
-        return render(request, 'output_list.html', context)
+        return render(request, 'sample_geo_app/output_list.html', context)
     return HttpResponse("Invalid Request.")

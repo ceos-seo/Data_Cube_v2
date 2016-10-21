@@ -66,33 +66,129 @@ def create_mosaic_iterative(dataset_in, clean_mask=None, no_data=-9999, intermed
         clean_mask = utilities.create_cfmask_clean_mask(cfmask)
         dataset_in = dataset_in.drop('cf_mask')
 
-    data_vars = dataset_in.data_vars # Dict object with key as the name of the variable
-                                     # and each value as the DataArray of that variable
-
-    mosaic = OrderedDict() # Dict to contain variable names as keys and numpy arrays containing
-                # mosaicked data
-
-    for key in data_vars:
-        # Get raw data for current variable and mask the data
-        data = data_vars[key].values
-        masked = np.full(data.shape, no_data)
-        masked[clean_mask] = data[clean_mask]
-        if intermediate_product is None:
-            out = np.full(masked.shape[1:], no_data)
+    #masks data with clean_mask. all values that are clean_mask==False are set to nodata.
+    for key in list(dataset_in.data_vars):
+        dataset_in[key].values[np.invert(clean_mask)] = no_data
+    if intermediate_product is not None:
+        dataset_out = intermediate_product.copy(deep=True)
+    else:
+        dataset_out = None
+    for index in reversed(range(len(clean_mask))):
+        dataset_slice = dataset_in.isel(time=index).astype("int16").drop('time')
+        if dataset_out is None:
+            dataset_out = dataset_slice.copy(deep=True)
+            #clear out the params as they can't be written to nc.
+            dataset_out.attrs = OrderedDict()
         else:
-            out = intermediate_product[key].values
-        # Mosaic current variable (most recent - oldest)
-        for index in reversed(range(len(clean_mask))):
-            swap = np.reshape(np.in1d(out.reshape(-1), [no_data]),
-                              out.shape)
-            out[swap] = masked[index][swap]
-            mosaic[key] = (['latitude', 'longitude'], out)
+            for key in list(dataset_in.data_vars):
+                dataset_out[key].values[dataset_out[key].values==-9999] = dataset_slice[key].values[dataset_out[key].values==-9999]
+    return dataset_out
 
-    latitude = dataset_in.latitude
-    longitude = dataset_in.longitude
+def create_median_mosaic(dataset_in, clean_mask=None, no_data=-9999, intermediate_product=None):
+    """
+	Description:
+		Method for calculating the median pixel value for a given dataset.
+	-----
+	Input:
+		dataset_in (xarray dataset) - the set of data with clouds and no data removed.
+	Optional Inputs:
+		no_data (int/float) - no data value.
+	"""
+    # Create clean_mask from cfmask if none given
+    if clean_mask is None:
+        cfmask = dataset_in.cf_mask
+        clean_mask = utilities.create_cfmask_clean_mask(cfmask)
+        dataset_in = dataset_in.drop('cf_mask')
 
-    dataset_out = xr.Dataset(mosaic,
-                             coords={'latitude': latitude,
-                                     'longitude': longitude})
+    #required for np.nan
+    dataset_in = dataset_in.astype("float64")
 
+    for key in list(dataset_in.data_vars):
+        dataset_in[key].values[np.invert(clean_mask)] = no_data
+
+    dataset_out = dataset_in.isel(time=0).drop('time').copy(deep=True)
+    dataset_out.attrs = OrderedDict()
+    # Loop over every key.
+    for key in list(dataset_in.data_vars):
+        dataset_in[key].values[dataset_in[key].values==no_data] = np.nan
+        dataset_out[key].values = np.nanmedian(dataset_in[key].values, axis=0)
+        dataset_out[key].values[dataset_out[key].values==np.nan] = no_data
+
+    return dataset_out.astype('int16')
+
+
+def create_max_ndvi_mosaic(dataset_in, clean_mask=None, no_data=-9999, intermediate_product=None):
+    """
+	Description:
+		Method for calculating the pixel value for the max ndvi value.
+	-----
+	Input:
+		dataset_in (xarray dataset) - the set of data with clouds and no data removed.
+	Optional Inputs:
+		no_data (int/float) - no data value.
+	"""
+    # Create clean_mask from cfmask if none given
+    if clean_mask is None:
+        cfmask = dataset_in.cf_mask
+        clean_mask = utilities.create_cfmask_clean_mask(cfmask)
+        dataset_in = dataset_in.drop('cf_mask')
+
+    for key in list(dataset_in.data_vars):
+        dataset_in[key].values[np.invert(clean_mask)] = no_data
+
+    if intermediate_product is not None:
+        dataset_out = intermediate_product.copy(deep=True)
+    else:
+        dataset_out = None
+
+    for timeslice in range(clean_mask.shape[0]):
+        dataset_slice = dataset_in.isel(time=timeslice).astype("float64").drop('time')
+        ndvi = (dataset_slice.nir - dataset_slice.red) / (dataset_slice.nir + dataset_slice.red)
+        ndvi.values[np.invert(clean_mask)[timeslice,::]] = -1000000000
+        dataset_slice['ndvi'] = ndvi
+        if dataset_out is None:
+            dataset_out = dataset_slice.copy(deep=True)
+            #clear out the params as they can't be written to nc.
+            dataset_out.attrs = OrderedDict()
+        else:
+            for key in list(dataset_slice.data_vars):
+                dataset_out[key].values[dataset_slice.ndvi.values > dataset_out.ndvi.values] = dataset_slice[key].values[dataset_slice.ndvi.values > dataset_out.ndvi.values]
+    return dataset_out
+
+def create_min_ndvi_mosaic(dataset_in, clean_mask=None, no_data=-9999, intermediate_product=None):
+    """
+	Description:
+		Method for calculating the pixel value for the min ndvi value.
+	-----
+	Input:
+		dataset_in (xarray dataset) - the set of data with clouds and no data removed.
+	Optional Inputs:
+		no_data (int/float) - no data value.
+	"""
+    # Create clean_mask from cfmask if none given
+    if clean_mask is None:
+        cfmask = dataset_in.cf_mask
+        clean_mask = utilities.create_cfmask_clean_mask(cfmask)
+        dataset_in = dataset_in.drop('cf_mask')
+
+    for key in list(dataset_in.data_vars):
+        dataset_in[key].values[np.invert(clean_mask)] = no_data
+
+    if intermediate_product is not None:
+        dataset_out = intermediate_product.copy(deep=True)
+    else:
+        dataset_out = None
+
+    for timeslice in range(clean_mask.shape[0]):
+        dataset_slice = dataset_in.isel(time=timeslice).astype("float64").drop('time')
+        ndvi = (dataset_slice.nir - dataset_slice.red) / (dataset_slice.nir + dataset_slice.red)
+        ndvi.values[np.invert(clean_mask)[timeslice,::]] = 1000000000
+        dataset_slice['ndvi'] = ndvi
+        if dataset_out is None:
+            dataset_out = dataset_slice.copy(deep=True)
+            #clear out the params as they can't be written to nc.
+            dataset_out.attrs = OrderedDict()
+        else:
+            for key in list(dataset_slice.data_vars):
+                dataset_out[key].values[dataset_slice.ndvi.values < dataset_out.ndvi.values] = dataset_slice[key].values[dataset_slice.ndvi.values < dataset_out.ndvi.values]
     return dataset_out

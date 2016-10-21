@@ -75,14 +75,8 @@ def water_detection(request, area_id):
     satellites = Satellite.objects.all().order_by('satellite_id')
     forms = {}
     for satellite in satellites:
-        result_types = ResultType.objects.filter(
-            satellite_id=satellite.satellite_id)
-        result_type_list = [(result.result_id, result.result_type)
-                            for result in result_types]
-        animation_type_list = [(animation_type.type_id, animation_type.type_name)
-                                for animation_type in AnimationType.objects.all()]
         forms[satellite.satellite_id] = {'Output Image Characteristics': DataSelectForm(
-            result_list=result_type_list, animation_list=animation_type_list, auto_id=satellite.satellite_id + "_%s"), 'Geospatial Bounds': GeospatialForm(auto_id=satellite.satellite_id + "_%s")}
+            satellite_id=satellite.satellite_id, auto_id=satellite.satellite_id + "_%s"), 'Geospatial Bounds': GeospatialForm(auto_id=satellite.satellite_id + "_%s")}
         # gets a flat list of the bands/result types and populates the choices.
     # will later be populated after we have authentication working.
     running_queries = Query.objects.filter(
@@ -92,6 +86,7 @@ def water_detection(request, area_id):
 
     context = {
         'tool_name': 'water_detection',
+        'info_panel': 'water_detection/info_panel.html',
         'satellites': satellites,
         'forms': forms,
         'running_queries': running_queries,
@@ -302,7 +297,7 @@ def get_results_list(request, area_id):
         queries = []
         metadata_entries = []
         for query_id in query_ids:
-            queries.append(Query.objects.filter(query_id=query_id)[0])
+            queries.append(Query.objects.filter(query_id=query_id).order_by('-query_start')[0])
             metadata_entries.append(
                 Metadata.objects.filter(query_id=query_id)[0])
 
@@ -337,7 +332,7 @@ def get_output_list(request, area_id):
         for query_id in query_ids:
             # queries.append(Query.objects.filter(query_id=query_id)[0])
             # metadata_entries.append(Metadata.objects.filter(query_id=query_id)[0])
-            data[Query.objects.filter(query_id=query_id)[0]] = Metadata.objects.filter(
+            data[Query.objects.filter(query_id=query_id).order_by('-query_start')[0]] = Metadata.objects.filter(
                 query_id=query_id)[0]
 
         context = {

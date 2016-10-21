@@ -28,6 +28,19 @@ img {
   text-align: center;
 }
 
+.image-display {
+    display: block;
+    margin: 0 auto;
+  	max-width: 100%;
+    max-height: 100%;
+    border: rgb(255,127,80) 2px outset;
+}
+
+.image-description {
+    font-size: 0.75em;
+    text-align: center;
+}
+
 #wrap {
     min-height: 100%;
     height: auto !important;
@@ -120,6 +133,10 @@ p.loginText {
 }
 h3, li, p, label, input, select, button {
     color: #444;
+}
+
+h4 {
+  margin: 1vw 0 0 0;
 }
 
 /* styling of the uls/form data..  */
@@ -463,6 +480,8 @@ input[type=submit]:hover, input[type=button]:hover, button:hover {
     padding: 5px;
 }
 .submitBlock {
+    float: right;
+    padding: 8px 15px 8px 15px;
     margin-left: 5px;
     position: relative;
     height: 30px;

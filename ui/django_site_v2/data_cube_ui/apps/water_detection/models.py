@@ -98,6 +98,18 @@ class Query(models.Model):
             self.latitude_min) + '-' + str(self.longitude_max) + '-' + str(self.longitude_min) + '-' + self.platform + '-' + self.product + '-' + self.query_type + '-' + self.animated_product
         return query_id
 
+    def generate_metadata(self, scene_count=0, pixel_count=0):
+        meta = Metadata(query_id=self.query_id, scene_count=scene_count, pixel_count=pixel_count,
+                        latitude_min=self.latitude_min, latitude_max=self.latitude_max, longitude_min=self.longitude_min, longitude_max=self.longitude_max)
+        meta.save()
+        return meta
+
+    def generate_result(self):
+        result =  Result(query_id=self.query_id, water_percentage_path="", water_observations_path="", clear_observations_path="", data_path="", data_netcdf_path="", latitude_min=self.latitude_min,
+                        latitude_max=self.latitude_max, longitude_min=self.longitude_min, longitude_max=self.longitude_max, total_scenes=0, scenes_processed=0, status="WAIT")
+        result.save()
+        return result
+
 
 class Metadata(models.Model):
     """

@@ -53,13 +53,14 @@ class Query(models.Model):
     platform = models.CharField(max_length=25, default="")
     product = models.CharField(max_length=25, default="")
     #product_type = models.CharField(max_length=25, default="")
-    measurements = models.CharField(max_length=100, default="")
+
     time_start = models.DateTimeField('time_start')
     time_end = models.DateTimeField('time_end')
     latitude_min = models.FloatField(default=0)
     latitude_max = models.FloatField(default=0)
     longitude_min = models.FloatField(default=0)
     longitude_max = models.FloatField(default=0)
+    compositor = models.CharField(max_length=25, default="most_recent")
 
     #false by default, only change is false-> true
     complete = models.BooleanField(default=False)
@@ -76,6 +77,15 @@ class Query(models.Model):
         """
         return ResultType.objects.filter(result_id=self.query_type, satellite_id=self.platform)[0].result_type;
 
+    def get_compositor_name(self):
+        """
+        Gets the ResultType.result_type attribute associated with the given Query object.
+
+        Returns:
+            result_type (string): The result type of the query.
+        """
+        return Compositor.objects.get(compositor_id=self.compositor).compositor;
+
     def generate_query_id(self):
         """
         Creates a Query ID based on a number of different attributes including start_time, end_time
@@ -84,8 +94,20 @@ class Query(models.Model):
         Returns:
             query_id (string): The ID of the query built up by object attributes.
         """
-        query_id = self.time_start.strftime("%Y-%m-%d")+'-'+self.time_end.strftime("%Y-%m-%d")+'-'+str(self.latitude_max)+'-'+str(self.latitude_min)+'-'+str(self.longitude_max)+'-'+str(self.longitude_min)+'-'+self.measurements+'-'+self.platform+'-'+self.product+'-'+self.query_type
+        query_id = self.time_start.strftime("%Y-%m-%d")+'-'+self.time_end.strftime("%Y-%m-%d")+'-'+str(self.latitude_max)+'-'+str(self.latitude_min)+'-'+str(self.longitude_max)+'-'+str(self.longitude_min)+'-'+self.compositor+'-'+self.platform+'-'+self.product+'-'+self.query_type
         return query_id
+
+    def generate_metadata(self, scene_count=0, pixel_count=0):
+        meta = Metadata(query_id=self.query_id, scene_count=scene_count, pixel_count=pixel_count,
+                        latitude_min=self.latitude_min, latitude_max=self.latitude_max, longitude_min=self.longitude_min, longitude_max=self.longitude_max)
+        meta.save()
+        return meta
+
+    def generate_result(self):
+        result = Result(query_id=self.query_id, result_path="", data_path="", latitude_min=self.latitude_min,
+                        latitude_max=self.latitude_max, longitude_min=self.longitude_min, longitude_max=self.longitude_max, total_scenes=0, scenes_processed=0, status="WAIT")
+        result.save()
+        return result
 
 class Metadata(models.Model):
     """
@@ -175,6 +197,7 @@ class Result(models.Model):
 
     #result path + other data. More to come.
     result_path = models.CharField(max_length=250, default="")
+    data_netcdf_path = models.CharField(max_length=250, default="")
     result_filled_path = models.CharField(max_length=250, default="")
     data_path = models.CharField(max_length=250, default="")
 
@@ -186,16 +209,6 @@ class Satellite(models.Model):
 
     satellite_id = models.CharField(max_length=25)
     satellite_name = models.CharField(max_length=25)
-
-class SatelliteBand(models.Model):
-    """
-    Stores a single instance of a SatelliteBand object that contains all the information for requests
-    submitted.
-    """
-
-    satellite_id = models.CharField(max_length=25)
-    band_number = models.IntegerField()
-    band_name = models.CharField(max_length=25)
 
 class ResultType(models.Model):
     """
@@ -210,6 +223,13 @@ class ResultType(models.Model):
     green = models.CharField(max_length=25)
     blue = models.CharField(max_length=25)
     fill = models.CharField(max_length=25, default="red")
+
+class Compositor(models.Model):
+    """
+    Stores a compositor including a human readable name and an id.
+    """
+    compositor = models.CharField(max_length=25)
+    compositor_id = models.CharField(max_length=25)
 
 class Area(models.Model):
     """

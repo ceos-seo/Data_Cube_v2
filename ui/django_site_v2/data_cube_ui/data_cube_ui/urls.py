@@ -44,5 +44,6 @@ urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^custom_mosaic_tool/', include('apps.custom_mosaic_tool.urls')),
     url(r'^water_detection/', include('apps.water_detection.urls')),
+    url(r'^tsm/', include('apps.tsm.urls')),
     url(r'^task_manager/', include('apps.task_manager.urls')),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

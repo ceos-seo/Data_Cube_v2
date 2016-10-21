@@ -1,3 +1,4 @@
+{% extends "query_details_template.html" %}
 <!--
 Copyright 2016 United States Government as represented by the Administrator
 of the National Aeronautics and Space Administration. All Rights Reserved.
@@ -20,7 +21,6 @@ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 License for the specific language governing permissions and limitations
 under the License.
 -->
-{% extends "query_details_template.html" %}
 {% block query_details %}
 <dl>
   <dt>
@@ -43,11 +43,12 @@ under the License.
   </dt>
   <dd><b>(Lat, Lon) Min:</b> ({{query.latitude_min}} , {{query.longitude_min}})</dd>
   <dd><b>(Lat, Lon) Max:</b> ({{query.latitude_max}} , {{query.longitude_max}})</dd>
-  <dd><b>Measurements:</b> {{query.measurements}}</dd>
+  <dd><b>Compositing Method:</b> {{query.get_compositor_name}}</dd>
   <dt>
     Results:
   </dt>
   <dd><b>Result Path:</b> <a href={{result.result_path}} target="_blank">View image</a></dd>
+  <dd><b>NetCDF Path:</b> <a href={{result.data_netcdf_path}}>Download nc</a></dd>
   <dd><b>Data Path:</b> <a href={{result.data_path}}>Download tif</a></dd>
 </dl>
 {% endblock %}

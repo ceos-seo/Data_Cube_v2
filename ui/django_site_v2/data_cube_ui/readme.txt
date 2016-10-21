@@ -39,7 +39,7 @@ the list of applications like so (exclude double quotes): "`apps.NAME_OF_APP`,"
 
 To navigate to and within the new application, the URLs must be included in the main application.
 Open the "urls.py" file under the directory where the "settings.py" exists (~/Datacube/data_cube_ui/data_cube_ui).
-There are a list of urlpatters present.  Add the following line after the last URL object:
+There are a list of url patterns present.  Add the following line after the last URL object:
 
       	  url(r'^NAME_OF_APP/', include('apps.NAME_OF_APP.urls')),
 
@@ -92,6 +92,14 @@ There are a list of urlpatters present.  Add the following line after the last U
 
 With the addition of this line the new application can be reached and navigated.
 
+Due to it's high modularity, a number of features have been broken out based on apps.  In the case
+of the output list, query history, and result List, the templates is common between all the different
+applications.  As a result, the developer should create custom pages within respective folders in the
+template directory (as seen with the Sample Geo App) to include customized fields for user input and
+program out.
+
+::NOTE:: Django will not recognize the subfolders of the templates directory unless included in the
+	 `setting.py` file under the TEMPLATES field.
 
 ----------------------------
 +Contents of Sample_Geo_App+

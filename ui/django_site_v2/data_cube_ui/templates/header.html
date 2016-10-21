@@ -42,6 +42,13 @@ under the License.
             {% endfor %}
           </div>
         </li>
+        <li ><a id="tsm" href="#" class="drop">TSM</a>
+                <div class="dropdown_2columns">
+                  {% for area in areas %}
+                    <a id="{{ area.area_id }}" href="/tsm/{{ area.area_id }}" class="drop">{{ area.area_name }}</a>
+                  {% endfor %}
+                </div>
+              </li>
         <li ><a id="task-manager-nav" href="#">Task Manager</a>
           <div class="dropdown_2columns">
             {% for app in apps %}

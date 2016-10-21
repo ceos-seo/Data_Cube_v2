@@ -19,7 +19,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from .models import Query, SatelliteBand, ResultType, Area
+from .models import Query, ResultType, Area
 from datetime import datetime
 
 """
@@ -49,12 +49,6 @@ def create_query_from_post(user_id, post):
     start = datetime.strptime(post['time_start'], '%m/%d/%Y')
     end = datetime.strptime(post['time_end'], '%m/%d/%Y')
 
-    bands = SatelliteBand.objects.all()
-    bands_list = ""
-    for band_number in post.getlist('band_selection'):
-        bands_list += bands.get(satellite_id=post['platform'],
-                                band_number=band_number).band_name.lower() + ','
-    bands_list = bands_list.rstrip(',')
     # hardcoded product, user id. Will be changed.
     query = Query(query_start=datetime.now(), query_end=datetime.now(), user_id=user_id,
                   query_type=post['result_type'], latitude_max=post[
@@ -62,7 +56,7 @@ def create_query_from_post(user_id, post):
                   longitude_max=post['longitude_max'], longitude_min=post[
                       'longitude_min'],
                   time_start=start, time_end=end, platform=post[
-                      'platform'], measurements=bands_list)
+                      'platform'], compositor=post['compositor_selection'])
     if 'title' not in post or post['title'] == '':
         query.title = query.get_type_name() + " mosaic"
     else:
@@ -85,3 +79,11 @@ def create_query_from_post(user_id, post):
 def uniquify_list(seq):
     seen = set()
     return [x for x in seq if x not in seen and not seen.add(x)]
+
+def update_model_bounds_with_dataset(model_list, dataset):
+    for model in model_list:
+        model.latitude_max = dataset.latitude.values[0]
+        model.latitude_min = dataset.latitude.values[-1]
+        model.longitude_max = dataset.longitude.values[-1]
+        model.longitude_min = dataset.longitude.values[0]
+        model.save()

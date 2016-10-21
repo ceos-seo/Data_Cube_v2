@@ -24,6 +24,8 @@ import gdal, osr
 import numpy as np
 import xarray as xr
 import collections
+import os
+import math
 from datetime import datetime
 
 import datacube
@@ -61,6 +63,46 @@ def create_cfmask_clean_mask(cfmask):
                             cfmask.values.shape)
     return clean_mask
 
+# split a task (sq area, time) into geographical and time chunks based on params.
+# latitude and longitude are a tuple containing (lower, upper)
+# acquisitions are the list of all acquisitions
+# geo chunk size is the square area per chunk, time chunks is the number of time chunks.
+# returns list of ranges that make up the full lat/lon ranges, list of lists containing acquisition dates.
+def split_task(resolution=0.000269, latitude=None, longitude=None, acquisitions=None, geo_chunk_size=None, time_chunks=None, reverse_time=False):
+    square_area = (longitude[1] - longitude[0]) * (latitude[1] - latitude[0])
+    print("Square area: ", square_area)
+    #split the task into n geo chunks based on sq area and chunk size.
+    # checking if lat/lon are not none as its possible to not enter params and get full dataset.
+    lon_ranges = []
+    lat_ranges = []
+    if latitude is not None and longitude is not None:
+        if geo_chunk_size is not None and square_area > geo_chunk_size:
+            geographic_chunks = math.ceil(square_area / geo_chunk_size)
+            lat_range_size = (latitude[1] - latitude[0]) / geographic_chunks
+            # longitude/x
+            for i in range(math.ceil((latitude[1] - latitude[0]) / lat_range_size)):
+                lower_lat = latitude[0]+(i*lat_range_size)
+                upper_lat = latitude[0]+((i+1)*lat_range_size)
+                if i != geographic_chunks-1:
+                    upper_lat -= resolution
+                lat_ranges.append((lower_lat, upper_lat))
+                lon_ranges.append((longitude[0], longitude[1]))
+        else:
+            lon_ranges.append((longitude[0], longitude[1]))
+            lat_ranges.append((latitude[0], latitude[1]))
+    else:
+        lon_ranges = [None]
+        lat_ranges = [None]
+    #split the acquisition list into chunks as well.
+    if reverse_time:
+        acquisitions.reverse()
+    time_ranges = [acquisitions]
+    if time_chunks is not None:
+        time_chunk_size = math.ceil(len(acquisitions) / time_chunks)
+        time_ranges = list(chunks(acquisitions, time_chunk_size))
+
+    return lat_ranges, lon_ranges, time_ranges
+
 def get_spatial_ref(crs):
     """
     Description:
@@ -92,39 +134,24 @@ def perform_timeseries_analysis(dataset_in, no_data=-9999):
 
     data_vars = list(dataset_in.data_vars)
     key = data_vars[0]
+    data = dataset_in[key].astype('float')
 
-    data = dataset_in[key]
+    processed_data = data.copy(deep=True)
+    processed_data.values[data.values == no_data] = 0
+    processed_data_sum = processed_data.sum('time')
 
-    #shape = data.shape[1:]
-
-    data_dup = data.copy(deep=True)
-    data_dup.values = data_dup.values.astype('float')
-    data_dup.values[data.values == no_data] = 0
-
-    processed_data_sum = data_dup.sum('time')
-
-    # Create xarray of data
-    time = data.time
-    latitude = data.latitude
-    longitude = data.longitude
-
-    # Masking no data values then converting boolean to int for easy summation
-    clean_data_raw = np.reshape(np.in1d(data.values.reshape(-1), [no_data], invert=True),
-                                        data.values.shape).astype(int)
-
-    clean_data = xr.DataArray(clean_data_raw,
-                              coords=[time, latitude, longitude],
-                              dims=['time', 'latitude', 'longitude'])
-
+    clean_data = data.copy(deep=True)
+    clean_data.values[data.values != no_data] = 1
+    clean_data.values[data.values == no_data] = 0
     clean_data_sum = clean_data.sum('time')
 
     processed_data_normalized = processed_data_sum/clean_data_sum
 
-    dataset_out = xr.Dataset(collections.OrderedDict([('normalized_data', (['latitude', 'longitude'], processed_data_normalized)),
-                                                      ('total_data', (['latitude', 'longitude'], processed_data_sum)),
-                                                      ('total_clean', (['latitude', 'longitude'], clean_data_sum))]),
-                             coords={'latitude': latitude,
-                                     'longitude': longitude})
+    dataset_out = xr.Dataset({'normalized_data': processed_data_normalized,
+                              'total_data': processed_data_sum,
+                              'total_clean': clean_data_sum},
+                             coords={'latitude': dataset_in.latitude,
+                                     'longitude': dataset_in.longitude})
 
     return dataset_out
 
@@ -142,51 +169,37 @@ def perform_timeseries_analysis_iterative(dataset_in, intermediate_product=None,
 
     data_vars = list(dataset_in.data_vars)
     key = data_vars[0]
+    data = dataset_in[key].astype('float')
 
-    data = dataset_in[key]
+    processed_data = data.copy(deep=True)
+    processed_data.values[data.values == no_data] = 0
+    processed_data_sum = processed_data.sum('time')
 
-    #shape = data.shape[1:]
-
-    data_dup = data.copy(deep=True)
-    data_dup.values = data_dup.values.astype('float')
-    data_dup.values[data.values == no_data] = 0
-
-    processed_data_sum = data_dup.sum('time')
-
-    # Create xarray of data
-    time = data.time
-    latitude = data.latitude
-    longitude = data.longitude
-
-    # Masking no data values then converting boolean to int for easy summation
-    clean_data_raw = np.reshape(np.in1d(data.values.reshape(-1), [no_data], invert=True),
-                                        data.values.shape).astype(int)
-
-    clean_data = xr.DataArray(clean_data_raw,
-                              coords=[time, latitude, longitude],
-                              dims=['time', 'latitude', 'longitude'])
-
+    clean_data = data.copy(deep=True)
+    clean_data.values[data.values != no_data] = 1
+    clean_data.values[data.values == no_data] = 0
     clean_data_sum = clean_data.sum('time')
 
     if intermediate_product is None:
         processed_data_normalized = processed_data_sum/clean_data_sum
-        dataset_out = xr.Dataset(collections.OrderedDict([('normalized_data', (['latitude', 'longitude'], processed_data_normalized)),
-                                                          ('total_data', (['latitude', 'longitude'], processed_data_sum)),
-                                                          ('total_clean', (['latitude', 'longitude'], clean_data_sum))]),
-                                 coords={'latitude': latitude,
-                                         'longitude': longitude})
+        processed_data_normalized.values[np.isnan(processed_data_normalized.values)] = 0
+        dataset_out = xr.Dataset({'normalized_data': processed_data_normalized,
+                                  'total_data': processed_data_sum,
+                                  'total_clean': clean_data_sum},
+                                 coords={'latitude': dataset_in.latitude,
+                                         'longitude': dataset_in.longitude})
     else:
-        intermediate_product['total_data'] += processed_data_sum
-        intermediate_product['total_clean'] += clean_data_sum
-        processed_data_normalized = intermediate_product['total_data'] / intermediate_product['total_clean']
-        #processed_data_normalized.values = np.nan_to_num(processed_data_normalized.values)
-        intermediate_product['normalized_data'] = processed_data_normalized
-        return intermediate_product
+        dataset_out = intermediate_product.copy(deep=True)
+        dataset_out['total_data'] += processed_data_sum
+        dataset_out['total_clean'] += clean_data_sum
+        processed_data_normalized = dataset_out['total_data'] / dataset_out['total_clean']
+        processed_data_normalized.values[np.isnan(processed_data_normalized.values)] = 0
+        dataset_out['normalized_data'] = processed_data_normalized
 
     return dataset_out
 
 def save_to_geotiff(out_file, data_type, dataset_in, geotransform, spatial_ref,
-                    x_pixels=3711, y_pixels=3712, no_data=-9999):
+                    x_pixels=3711, y_pixels=3712, no_data=-9999, band_order=None):
     """
     Description:
       Save data in bands to a GeoTIFF
@@ -201,15 +214,22 @@ def save_to_geotiff(out_file, data_type, dataset_in, geotransform, spatial_ref,
       x_pixels (int) - num pixels in x direction
       y_pixels (int) - num pixels in y direction
       no_data (int/float) - no data value
+      band_order - list of bands in order for the tiff.
     """
 
     data_vars = dataset_in.data_vars
+
+    if band_order is None:
+        keys = list(data_vars)
+    else:
+        keys = band_order
+
     driver = gdal.GetDriverByName('GTiff')
-    raster = driver.Create(out_file, x_pixels, y_pixels, len(data_vars), data_type)
+    raster = driver.Create(out_file, x_pixels, y_pixels, len(data_vars), data_type, options=["BIGTIFF=YES", "INTERLEAVE=BAND"])
     raster.SetGeoTransform(geotransform)
     raster.SetProjection(spatial_ref)
     index = 1
-    for key in data_vars:
+    for key in keys:
         out_band = raster.GetRasterBand(index)
         out_band.SetNoDataValue(no_data)
         out_band.WriteArray(data_vars[key].values)
@@ -218,3 +238,20 @@ def save_to_geotiff(out_file, data_type, dataset_in, geotransform, spatial_ref,
     raster.FlushCache()
     out_band = None
     raster = None
+
+def create_rgb_png_from_tiff(tif_path, png_path, bands=[1, 2, 3], png_filled_path=None, fill_color=None):
+    cmd = "gdal_translate -ot Byte -outsize 50% 50% -scale 0 4096 0 255 -of PNG -b " + str(bands[0]) + " -b " + str(bands[1]) + " -b " + str(bands[2]) + " " + \
+        tif_path + ' ' + png_path
+    os.system(cmd)
+
+    if png_filled_path is not None and fill_color is not None:
+        cmd = "convert -transparent \"#000000\" " + png_path + " " + png_path
+        os.system(cmd)
+        cmd = "convert " + png_path + " -background " + \
+            fill_color + " -alpha remove " + png_filled_path
+        os.system(cmd)
+
+# Break the list l into n sized chunks.
+def chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]

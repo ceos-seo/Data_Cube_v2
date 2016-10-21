@@ -28,7 +28,7 @@ from django.contrib import messages
 import json
 from datetime import datetime, timedelta
 
-from .models import Satellite, SatelliteBand, ResultType, Result, Query, Metadata, Area
+from .models import Satellite, ResultType, Result, Query, Metadata, Area
 from .forms import DataSelectForm, GeospatialForm
 from .tasks import create_cloudfree_mosaic
 
@@ -75,23 +75,13 @@ def custom_mosaic_tool(request, area_id):
     satellites = Satellite.objects.all().order_by('satellite_id')
     forms = {}
     for satellite in satellites:
-        bands = SatelliteBand.objects.filter(
-            satellite_id=satellite.satellite_id).order_by('band_number')
-        result_types = ResultType.objects.filter(
-            satellite_id=satellite.satellite_id)
-        results_list = [(result.result_id, result.result_type)
-                        for result in result_types]
-        bands_list = [(band.band_number, band.band_name) for band in bands]
-        forms[satellite.satellite_id] = {'Data Selection': DataSelectForm(
-            result_list=results_list, band_list=bands_list, auto_id=satellite.satellite_id + "_%s"), 'Geospatial Bounds': GeospatialForm(auto_id=satellite.satellite_id + "_%s")}
-        # gets a flat list of the bands/result types and populates the choices.
-    # will later be populated after we have authentication working.
+        forms[satellite.satellite_id] = {'Data Selection': DataSelectForm(satellite_id=satellite.satellite_id, auto_id=satellite.satellite_id + "_%s"),
+                                         'Geospatial Bounds': GeospatialForm(auto_id=satellite.satellite_id + "_%s")}
     running_queries = Query.objects.filter(user_id=user_id, area_id=area_id, complete=False)
-
     area = Area.objects.get(area_id=area_id)
-
     context = {
         'tool_name': 'custom_mosaic_tool',
+        'info_panel': 'custom_mosaic_tool/info_panel.html',
         'satellites': satellites,
         'forms': forms,
         'running_queries': running_queries,
@@ -123,6 +113,7 @@ def submit_new_request(request):
             response['request_id'] = query_id
         except:
             response['msg'] = "ERROR"
+            raise
         return JsonResponse(response)
     else:
         return JsonResponse({'msg': "ERROR"})
@@ -224,7 +215,7 @@ def get_result(request):
                 result.delete()
             elif result.status == "OK":
                 response['msg'] = "OK"
-                response['result'] = {'data_url': result.data_path, 'image_url': result.result_path, 'image_filled_url': result.result_filled_path, 'min_lat': result.latitude_min, 'max_lat': result.latitude_max,
+                response['result'] = {'data_url': result.data_path, 'nc_url': result.data_netcdf_path, 'image_url': result.result_path, 'image_filled_url': result.result_filled_path, 'min_lat': result.latitude_min, 'max_lat': result.latitude_max,
                                       'min_lon': result.longitude_min, 'max_lon': result.longitude_max, 'total_scenes': result.total_scenes, 'scenes_processed': result.scenes_processed}
                 # since there is a result, update all the currently running identical queries with complete=true;
                 Query.objects.filter(query_id=result.query_id).update(complete=True)
@@ -287,7 +278,7 @@ def get_results_list(request, area_id):
         queries = []
         metadata_entries = []
         for query_id in query_ids:
-            queries.append(Query.objects.filter(query_id=query_id)[0])
+            queries.append(Query.objects.filter(query_id=query_id).order_by('-query_start')[0])
             metadata_entries.append(
                 Metadata.objects.filter(query_id=query_id)[0])
 
@@ -321,7 +312,7 @@ def get_output_list(request, area_id):
         for query_id in query_ids:
             # queries.append(Query.objects.filter(query_id=query_id)[0])
             # metadata_entries.append(Metadata.objects.filter(query_id=query_id)[0])
-            data[Query.objects.filter(query_id=query_id)[0]] = Metadata.objects.filter(
+            data[Query.objects.filter(query_id=query_id).order_by('-query_start')[0]] = Metadata.objects.filter(
                 query_id=query_id)[0]
 
         context = {

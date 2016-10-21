@@ -71,3 +71,16 @@ def create_query_from_post(user_id, post):
     query.complete = False
     query.save()
     return query.query_id
+
+# Break the list l into n sized chunks.
+def chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+def update_model_bounds_with_dataset(model_list, dataset):
+    for model in model_list:
+        model.latitude_max = dataset.latitude.values[0]
+        model.latitude_min = dataset.latitude.values[-1]
+        model.longitude_max = dataset.longitude.values[-1]
+        model.longitude_min = dataset.longitude.values[0]
+        model.save()

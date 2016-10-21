@@ -29,14 +29,18 @@ import xarray as xr
 import collections
 import gdal
 import sys
+import shutil
 import osr
 import os
 import datetime
+from collections import OrderedDict
 from dateutil.tz import tzutc
 
 from utils.data_access_api import DataAccessApi
-from utils.dc_utilities import save_to_geotiff, create_cfmask_clean_mask, perform_timeseries_analysis_iterative
+from utils.dc_utilities import get_spatial_ref, save_to_geotiff, create_cfmask_clean_mask, perform_timeseries_analysis_iterative, split_task
 from utils.dc_water_classifier import wofs_classify
+
+from .utils import update_model_bounds_with_dataset
 
 # Author: AHDS
 # Creation date: 2016-06-23
@@ -45,31 +49,43 @@ from utils.dc_water_classifier import wofs_classify
 
 # constants up top for easy access/modification
 # hardcoded colors input path..
-color_path = ['~/Datacube/data_cube_ui/utils/au_water_percentage', '~/Datacube/data_cube_ui/utils/au_water_observations', '~/Datacube/data_cube_ui/utils/au_clear_observations']
-acquisitions_per_iteration = 1
+color_path = ['~/Datacube/data_cube_ui/utils/au_water_percentage',
+              '~/Datacube/data_cube_ui/utils/au_water_observations', '~/Datacube/data_cube_ui/utils/au_clear_observations']
+# this is required as when netcdfs are read from disk they don't remain in the correct order.
+# they are consistently arranged in this order though
+color_path_anim = ['~/Datacube/data_cube_ui/utils/au_water_percentage',
+                   '~/Datacube/data_cube_ui/utils/au_clear_observations', '~/Datacube/data_cube_ui/utils/au_water_observations']
+
 base_result_path = '/ui_results/water_detection/'
+base_temp_path = '/ui_results_temp/'
 
+def addition(dataset, dataset_intermediate):
+    """
+    functions used to combine time sliced data after being combined geographically.
+    This compounds the results of the time slice and recomputes the normalized data.
+    """
+    if dataset_intermediate is None:
+        return dataset.copy(deep=True)
+    data_vars = ["total_data", "total_clean"]
+    dataset_out = dataset_intermediate.copy(deep=True)
+    for key in data_vars:
+        dataset_out[key].values += dataset[key].values
+    dataset_out['normalized_data'].values = dataset_out["total_data"].values / dataset_out["total_clean"].values
+    return dataset_out
 
-# Datacube instance to be initialized.
-# A seperate DC instance is created for each worker.
-dc = None
-
-# Init/shutdown functions for handling dc instances.
-# this is done to prevent synchronization/conflicts between workers when
-# accessing DC resources.
-@worker_process_init.connect
-def init_worker(**kwargs):
-    print("Creating DC instance for worker.")
-    global dc
-    dc = DataAccessApi()
-
-
-@worker_process_shutdown.connect
-def shutdown_worker(**kwargs):
-    print('Closing DC instance for worker.')
-    global dc
-    dc = None
-
+# holds the different compositing algorithms. Most/least recent, max/min ndvi, median, etc.
+# all options are required. setting None to a option will have the algo/task splitting
+# process disregard it.
+processing_algorithms = {
+    'wofs': {
+        'geo_chunk_size': 0.5,
+        'time_chunks': 8,
+        'reverse_time': False,
+        'time_slices_per_iteration': 1,
+        'chunk_combination_method': addition,
+        'processing_method': wofs_classify
+    }
+}
 
 # Creates metadata and result objects from a query id.
 # gets the query, computes metadata for the parameters and saves the model.
@@ -78,6 +94,8 @@ def shutdown_worker(**kwargs):
 # array containing the total result. this is then used to create png/tifs to populate a result model.
 # result model is constantly updated with progress and checked for task
 # cancellation.
+
+
 @task(name="perform_water_analysis")
 def perform_water_analysis(query_id, user_id):
 
@@ -98,26 +116,23 @@ def perform_water_analysis(query_id, user_id):
     result_type = ResultType.objects.get(
         satellite_id=query.platform, result_id=query.query_type)
 
+    # creates the empty result.
+    result = query.generate_result()
+
     # do metadata before actually submitting the task.
     metadata = dc.get_scene_metadata(query.platform, query.product, time=(query.time_start, query.time_end), longitude=(
         query.longitude_min, query.longitude_max), latitude=(query.latitude_min, query.latitude_max))
     if not metadata:
-        error_with_message(result, "There was an exception when handling this query.")
+        error_with_message(
+            result, "There was an exception when handling this query.")
         return
 
-    # this is x*y, could include time if we wanted.
-    meta_pixel_count = metadata['pixel_count']
-    meta_scene_count = metadata['scene_count']
+    meta = query.generate_metadata(
+        scene_count=metadata['scene_count'], pixel_count=metadata['pixel_count'])
 
-    meta = Metadata(query_id=query.query_id, scene_count=meta_scene_count, pixel_count=meta_pixel_count,
-                    latitude_min=query.latitude_min, latitude_max=query.latitude_max, longitude_min=query.longitude_min, longitude_max=query.longitude_max)
-    meta.save()
-    print("Created the metadata model, starting to generate results.")
-
-    # creates the empty result.
-    result = Result(query_id=query_id, water_percentage_path="", water_observations_path="", clear_observations_path="", data_path="", data_netcdf_path="", latitude_min=query.latitude_min,
-                    latitude_max=query.latitude_max, longitude_min=query.longitude_min, longitude_max=query.longitude_max, total_scenes=0, scenes_processed=0, status="WAIT")
-    result.save()
+    # grabs the resolution.
+    product_details = dc.dc.list_products(
+    )[dc.dc.list_products().name == query.product]
 
     # wrapping this in a try/catch, as it will throw a few different errors
     # having to do with memory etc.
@@ -125,139 +140,210 @@ def perform_water_analysis(query_id, user_id):
         # lists all acquisition dates for use in single tmeslice queries.
         acquisitions = dc.list_acquisition_dates(query.platform, query.product, time=(query.time_start, query.time_end), longitude=(
             query.longitude_min, query.longitude_max), latitude=(query.latitude_min, query.latitude_max))
-        result.total_scenes = len(acquisitions)
-        result.save()
 
-        wofs_data = None
-        water_analysis = None
+        if len(acquisitions) < 1:
+            error_with_message(result, "There were no acquisitions for this parameter set.")
+            return
+
+        processing_options = processing_algorithms['wofs']
+
+        lat_ranges, lon_ranges, time_ranges = split_task(resolution=product_details.resolution.values[0][1], latitude=(query.latitude_min, query.latitude_max), longitude=(
+            query.longitude_min, query.longitude_max), acquisitions=acquisitions, geo_chunk_size=processing_options['geo_chunk_size'], time_chunks=processing_options['time_chunks'], reverse_time=processing_options['reverse_time'])
+
+        result.total_scenes = len(time_ranges) * len(lat_ranges)
+
         # Iterates through the acquisition dates with the step in acquisitions_per_iteration.
         # Uses a time range computed with the index and index+acquisitions_per_iteration.
         # ensures that the start and end are both valid.
         print("Getting data and creating mosaic")
-        index = 0
-        # holds some acquisition based metadata.
-        acquisition_dates = ""
-        acquisition_dates = ""
-        pixel_counts = ""
-        water_pixel_counts = ""
-        pixel_percentages = ""
+        # create a temp folder that isn't on the nfs server so we can quickly
+        # access/delete.
+        if not os.path.exists(base_temp_path + query.query_id):
+            os.mkdir(base_temp_path + query.query_id)
+            os.chmod(base_temp_path + query.query_id, 0o777)
 
-        # iterate over all acquisitions in variable sized chunks.
-        while index < len(acquisitions):
-            start = acquisitions[index]
-            if (index + acquisitions_per_iteration - 1) < len(acquisitions):
-                end = acquisitions[index + acquisitions_per_iteration - 1]
-            else:
-                end = acquisitions[-1] + datetime.timedelta(hours=1)
+        time_chunk_tasks = []
+        print("Time chunks: " + str(len(time_ranges)))
+        print("Geo chunks: " + str(len(lat_ranges)))
+        # iterate over the time chunks.
+        for time_range_index in range(len(time_ranges)):
+            # iterate over the geographic chunks.
+            geo_chunk_tasks = []
+            for geographic_chunk_index in range(len(lat_ranges)):
+                geo_chunk_tasks.append(generate_water_chunk.delay(time_range_index, geographic_chunk_index, processing_options=processing_options, query=query, acquisition_list=time_ranges[
+                                       time_range_index], lat_range=lat_ranges[geographic_chunk_index], lon_range=lon_ranges[geographic_chunk_index]))
+            time_chunk_tasks.append(geo_chunk_tasks)
 
-            print(start)
+        dataset_out = None
+        acquisition_metadata = {}
+        animation_tile_count = 0
+        time_range_index = 0
+        for geographic_group in time_chunk_tasks:
+            full_dataset = None
+            tiles = []
+            for t in geographic_group:
+                tile = t.get()
+                # tile is [path, metadata]. Append tiles to list of tiles for
+                # concat, compile metadata.
+                if tile == "CANCEL":
+                    print("Cancelled task.")
+                    shutil.rmtree(base_temp_path + query.query_id)
+                    query.delete()
+                    meta.delete()
+                    result.delete()
+                    return
+                if tile[0] is not None:
+                    tiles.append(tile)
+                result.scenes_processed += 1
+                result.save()
+            print("Got results for a time slice, computing intermediate product..")
+            xr_tiles = []
+            for tile in tiles:
+                tile_metadata = tile[1]
+                for acquisition_date in tile_metadata:
+                    if acquisition_date in acquisition_metadata:
+                        acquisition_metadata[acquisition_date][
+                            'clean_pixels'] += tile_metadata[acquisition_date]['clean_pixels']
+                        acquisition_metadata[acquisition_date][
+                            'water_pixels'] += tile_metadata[acquisition_date]['water_pixels']
+                    else:
+                        acquisition_metadata[acquisition_date] = {'clean_pixels': tile_metadata[acquisition_date][
+                            'clean_pixels'], 'water_pixels': tile_metadata[acquisition_date]['water_pixels']}
+                xr_tiles.append(xr.open_dataset(tile[0]))
+            #combine tiles
+            full_dataset = xr.concat(reversed(xr_tiles), dim='latitude')
+            dataset = full_dataset.load()
 
-            single_data = dc.get_dataset_by_extent(query.product, product_type=None, platform=query.platform, time=(start, end), longitude=(
-                query.longitude_min, query.longitude_max), latitude=(query.latitude_min, query.latitude_max))
+            # combine all the intermediate products for the animation creation.
+            if query.animated_product != "None":
+                  print("Num of slices in this chunk: " +
+                        str(len(time_ranges[time_range_index])))
+                  for timeslice in range(len(time_ranges[time_range_index])):
+                      result = Result.objects.get(query_id=query.query_id)
+                      if result.status == "CANCEL":
+                          print("Cancelled task.")
+                          shutil.rmtree(base_temp_path + query.query_id)
+                          query.delete()
+                          meta.delete()
+                          result.delete()
+                          return
+                      animation_tiles = []
+                      nc_paths = []
+                      for geoslice in range(len(lat_ranges)):
+                          nc_path = base_temp_path + query.query_id + '/' + \
+                              str(time_range_index) + '/' + \
+                              str(geoslice) + str(timeslice) + ".nc"
+                          nc_paths.append(nc_path)
+                          animation_tiles.append(xr.open_dataset(nc_path))
 
-            # get the actual data and perform analysis.
-            clean_mask = create_cfmask_clean_mask(single_data.cf_mask)
-            wofs_data = wofs_classify(single_data, clean_mask=clean_mask)
-            water_analysis = perform_timeseries_analysis_iterative(wofs_data, intermediate_product=water_analysis)
+                      animated_data = xr.concat(
+                          animation_tiles, dim='latitude').load()
+                      #combine the timeslice vals with the intermediate for the true value @ that timeslice
+                      if time_range_index > 0 and query.animated_product != "scene_water":
+                          animated_data = processing_options[
+                              'chunk_combination_method'](animated_data, dataset_out)
 
-            # here the clear mask has all the clean pixels for each acquisition.
-            # add to the comma seperated list of data.
-            for timeslice in range(clean_mask.shape[0]):
-                time = acquisitions[index + timeslice].strftime("%m/%d/%Y")
-                clean_pixels = np.sum(clean_mask[timeslice, :, :] == True)
-                water_pixels = np.sum(wofs_data.wofs.values[timeslice, :, :] == 1)
-                acquisition_dates += time + ","
-                pixel_counts += str(clean_pixels) + ","
-                water_pixel_counts += str(water_pixels) + ","
-                pixel_percentages += str((clean_pixels/meta.pixel_count)*100) + ","
-                # create the files requied for animation..
-                # if the dir doesn't exist, create it, then fill with a .png/.tif from the scene data.
-                if query.animated_product != "None":
-                    animated_product = AnimationType.objects.get(type_id=query.animated_product)
-                    dir_path = base_result_path + query.query_id
-                    tif_path = dir_path + '/' + str(index) + '.tif'
-                    png_path = dir_path + '/' + str(index) + '.png'
-                    if not os.path.exists(dir_path):
-                        os.makedirs(dir_path)
 
-                    #get metadata needed for tif creation.
-                    product_details = dc.dc.list_products()[dc.dc.list_products().name==query.product]
-                    geotransform = [single_data.longitude.values[0], product_details.resolution.values[0][1],
-                                    0.0, single_data.latitude.values[0], 0.0, product_details.resolution.values[0][0]]
-                    crs = str(single_data.crs)
-                    animated_data = wofs_data.isel(time=timeslice) if animated_product.type_id == "scene_water" else water_analysis
-                    save_to_geotiff(tif_path, gdal.GDT_Float64, animated_data, geotransform, crs,
-                                    x_pixels=single_data.dims['longitude'], y_pixels=single_data.dims['latitude'])
-                    # create pngs.
-                    cmd = "gdaldem color-relief -of PNG -b " + animated_product.band_number + " " + tif_path + " " + color_path[int(animated_product.band_number)-1] + " " + png_path
-                    os.system(cmd)
-                    cmd = "convert -transparent \"#FFFFFF\" " + png_path + " " + png_path
-                    os.system(cmd)
-                    if result_type.fill is not "transparent":
-                        cmd = "convert " + png_path + " -background " + \
-                            result_type.fill + " -alpha remove " + png_path
-                        os.system(cmd)
-                    # remove the tiff.. some of these can be >1gb, so having one per scene is too much.
-                    os.remove(tif_path)
-            index = index + acquisitions_per_iteration
+                      tif_path = base_temp_path + query.query_id + '/' + \
+                          str(time_range_index) + '/' + \
+                          str(animation_tile_count) + '.tif'
+                      png_path = base_temp_path + query.query_id + \
+                          '/' + str(animation_tile_count) + '.png'
+                      animation_tile_count += 1
 
-            result = Result.objects.get(query_id=query_id)
-            if result.status == "CANCEL":
-                Query.objects.filter(
-                    query_id=result.query_id, user_id=user_id).delete()
-                Metadata.objects.filter(query_id=result.query_id).delete()
-                result.delete()
-                print("Cancelling...")
-                return
-            result.scenes_processed = index
-            result.save()
+                      # get metadata needed for tif creation.
+                      geotransform = [dataset.longitude.values[0], product_details.resolution.values[0][1],
+                                      0.0, dataset.latitude.values[0], 0.0, product_details.resolution.values[0][0]]
+                      crs = str("EPSG:4326")
 
-        if wofs_data is None:
-            error_with_message(result, "There were no acquisitions for this parameter set.")
-            return
+                      save_to_geotiff(tif_path, gdal.GDT_Float64, animated_data, geotransform, crs,
+                                      x_pixels=animated_data.dims['longitude'], y_pixels=animated_data.dims['latitude'], band_order=["normalized_data", "total_data", "total_clean"] if query.animated_product != "scene_water" else None)
+                      animated_data = None
 
-        meta.acquisition_list = acquisition_dates
-        meta.clean_pixels_per_acquisition = pixel_counts
-        meta.clean_pixel_percentages_per_acquisition = pixel_percentages
-        meta.water_pixels_per_acquisition = water_pixel_counts
+                      animated_product = AnimationType.objects.get(
+                          type_id=query.animated_product)
+                      # create pngs.
+                      cmd = "gdaldem color-relief -of PNG -b " + animated_product.band_number + " " + \
+                          tif_path + " " + \
+                              color_path[
+                                  int(animated_product.band_number) - 1] + " " + png_path
+                      os.system(cmd)
+
+                      cmd = "convert -transparent \"#FFFFFF\" " + png_path + " " + png_path
+                      os.system(cmd)
+
+                      if result_type.fill is not "transparent":
+                          cmd = "convert " + png_path + " -background " + \
+                              result_type.fill + " -alpha remove " + png_path
+                          os.system(cmd)
+                      # remove all the intermediates for this timeslice
+                      for path in nc_paths:
+                          os.remove(path)
+                      os.remove(tif_path)
+                  # remove the tiff.. some of these can be >1gb, so having one
+                  # per scene is too much.
+                  shutil.rmtree(base_temp_path + query.query_id +
+                                '/' + str(time_range_index))
+
+            #add this intermediate product to the total.
+            dataset_out = processing_options[
+                'chunk_combination_method'](dataset, dataset_out)
+            time_range_index += 1
+
+        latitude = dataset_out.latitude
+        longitude = dataset_out.longitude
+
+        geotransform = [dataset_out.longitude.values[0], product_details.resolution.values[0][1],
+                        0.0, dataset_out.latitude.values[0], 0.0, product_details.resolution.values[0][0]]
+        crs = str("EPSG:4326")
+
+        # populate metadata values.
+        dates = list(acquisition_metadata.keys())
+        dates.sort()
+        for date in reversed(dates):
+            meta.acquisition_list += date.strftime("%m/%d/%Y") + ","
+            meta.clean_pixels_per_acquisition += str(
+                acquisition_metadata[date]['clean_pixels']) + ","
+            meta.clean_pixel_percentages_per_acquisition += str(
+                acquisition_metadata[date]['clean_pixels'] * 100 / meta.pixel_count) + ","
+            meta.water_pixels_per_acquisition += str(
+                acquisition_metadata[date]['water_pixels']) + ","
         meta.save()
-
-        #grabs the resolution.
-        product_details = dc.dc.list_products()[dc.dc.list_products().name==query.product]
-        geotransform = [single_data.longitude.values[0], product_details.resolution.values[0][1],
-                        0.0, single_data.latitude.values[0], 0.0, product_details.resolution.values[0][0]]
-
-        crs = str(single_data.crs)
 
         file_path = base_result_path + query_id
         netcdf_path = file_path + '.nc'
         tif_path = file_path + '.tif'
-        result_paths = [file_path + '_water_percentage.png', file_path + "_water_observation.png", file_path + '_clear_observation.png', file_path + '_water_animation.gif']
-        result_filled_paths = [file_path + '_filled_water_percentage.png', file_path + "_filled_water_observation.png", file_path + '_filled_clear_observation.png']
+        result_paths = [file_path + '_water_percentage.png', file_path + "_water_observation.png",
+                        file_path + '_clear_observation.png', file_path + '_water_animation.gif']
+        result_filled_paths = [file_path + '_filled_water_percentage.png', file_path +
+                               "_filled_water_observation.png", file_path + '_filled_clear_observation.png']
 
         print("Creating query results.")
         if query.animated_product != "None":
             import imageio
-            import shutil
-            with imageio.get_writer(file_path + '_water_animation.gif', mode='I') as writer:
+            with imageio.get_writer(file_path + '_water_animation.gif', mode='I', duration=1.0) as writer:
                 for index in range(len(acquisitions)):
-                    image = imageio.imread(base_result_path + query.query_id + '/' + str(index) + '.png')
+                    image = imageio.imread(
+                        base_temp_path + query.query_id + '/' + str(index) + '.png')
                     writer.append_data(image)
             result.water_animation_path = result_paths[3]
-            #get rid of all intermediate products since there are a lot.
-            shutil.rmtree(base_result_path + query.query_id)
 
-        save_to_geotiff(tif_path, gdal.GDT_Float64, water_analysis, geotransform, crs,
-                        x_pixels=single_data.dims['longitude'], y_pixels=single_data.dims['latitude'])
+        # get rid of all intermediate products since there are a lot.
+        shutil.rmtree(base_temp_path + query.query_id)
 
-        water_analysis.to_netcdf(netcdf_path)
+        save_to_geotiff(tif_path, gdal.GDT_Float64, dataset_out, geotransform, get_spatial_ref(crs),
+                        x_pixels=dataset_out.dims['longitude'], y_pixels=dataset_out.dims['latitude'], band_order=['normalized_data', 'total_data', 'total_clean'])
+        dataset_out.to_netcdf(netcdf_path)
 
         # we've got the tif, now do the png set..
-        #uses gdal dem with custom color maps..
+        # uses gdal dem with custom color maps..
         for index in range(len(color_path)):
-            cmd = "gdaldem color-relief -of PNG -b " + str(index+1) + " " + tif_path + " " + color_path[index] + " " + result_paths[index]
+            cmd = "gdaldem color-relief -of PNG -b " + \
+                str(index + 1) + " " + tif_path + " " + \
+                color_path[index] + " " + result_paths[index]
             os.system(cmd)
-            cmd = "convert -transparent \"#FFFFFF\" " + result_paths[index] + " " + result_paths[index]
+            cmd = "convert -transparent \"#FFFFFF\" " + \
+                result_paths[index] + " " + result_paths[index]
             os.system(cmd)
             if result_type.fill is not "transparent":
                 cmd = "convert " + result_paths[index] + " -background " + \
@@ -265,13 +351,14 @@ def perform_water_analysis(query_id, user_id):
                 os.system(cmd)
 
         # update the results and finish up.
+        update_model_bounds_with_dataset([result, meta, query], dataset_out)
         result.data_path = tif_path
         result.data_netcdf_path = netcdf_path
         result.water_percentage_path = result_paths[0]
         result.water_observations_path = result_paths[1]
         result.clear_observations_path = result_paths[2]
-
         result.status = "OK"
+        result.total_scenes = len(acquisitions)
         result.save()
         print("Finished processing results")
         # all data has been processed, create results and finish up.
@@ -280,17 +367,121 @@ def perform_water_analysis(query_id, user_id):
         query.save()
 
     except:
-        error_with_message(result, "There was an exception when handling this query.")
+        error_with_message(
+            result, "There was an exception when handling this query.")
         raise
     # end error wrapping.
 
     return
 
+
+@task(name="generate_water_chunk")
+def generate_water_chunk(time_num, chunk_num, processing_options=None, query=None, acquisition_list=None, lat_range=None, lon_range=None):
+    """
+    responsible for generating a piece of a water_detection product. This grabs the x/y area specified in the lat/lon ranges, gets all data
+    from acquisition_list, which is a list of acquisition dates, and creates the custom mosaic using the function named in processing_options.
+    saves the result to disk using time/chunk num, and returns the path and the acquisition date keyed metadata.
+    """
+    time_index = 0
+    wofs_data = None
+    water_analysis = None
+    acquisition_metadata = {}
+    print("Starting chunk: " + str(time_num) + " " + str(chunk_num))
+    # holds some acquisition based metadata.
+    while time_index < len(acquisition_list):
+        # check if the task has been cancelled. if the result obj doesn't exist anymore then return.
+        try:
+            result = Result.objects.get(query_id=query.query_id)
+        except:
+            print("Cancelled task as result does not exist")
+            return
+        if result.status == "CANCEL":
+            print("Cancelling...")
+            return "CANCEL"
+
+        # time ranges set based on if the acquisition_list has been reversed or not. If it has, then the 'start' index is the later date, and must be handled appropriately.
+        start = acquisition_list[time_index] + datetime.timedelta(seconds=1) if processing_options['reverse_time'] else acquisition_list[time_index]
+        if processing_options['time_slices_per_iteration'] is not None and (time_index + processing_options['time_slices_per_iteration'] - 1) < len(acquisition_list):
+            end = acquisition_list[time_index + processing_options['time_slices_per_iteration'] - 1]
+        else:
+            end = acquisition_list[-1] if processing_options['reverse_time'] else acquisition_list[-1] + datetime.timedelta(seconds=1)
+        time_range = (end, start) if processing_options['reverse_time'] else (start, end)
+
+        raw_data = dc.get_dataset_by_extent(query.product, product_type=None, platform=query.platform, time=(start, end), longitude=lon_range, latitude=lat_range)
+
+        # get the actual data and perform analysis.
+        if "cf_mask" not in raw_data:
+            time_index = time_index + processing_options['time_slices_per_iteration']
+            continue
+        clean_mask = create_cfmask_clean_mask(raw_data.cf_mask)
+
+        wofs_data = processing_options['processing_method'](raw_data, clean_mask=clean_mask, enforce_float64=True)
+        water_analysis = perform_timeseries_analysis_iterative(wofs_data, intermediate_product=water_analysis)
+
+        # here the clear mask has all the clean pixels for each acquisition.
+        # add to the comma seperated list of data.
+        for timeslice in range(clean_mask.shape[0]):
+            time = acquisition_list[time_index + timeslice]
+            clean_pixels = np.sum(clean_mask[timeslice, :, :] == True)
+            water_pixels = np.sum(wofs_data.wofs.values[timeslice, :, :] == 1)
+            if time not in acquisition_metadata:
+                acquisition_metadata[time] = {}
+                acquisition_metadata[time]['clean_pixels'] = 0
+                acquisition_metadata[time]['water_pixels'] = 0
+            acquisition_metadata[time]['clean_pixels'] += clean_pixels
+            acquisition_metadata[time]['water_pixels'] += water_pixels
+
+            # create the files requied for animation..
+            # if the dir doesn't exist, create it, then fill with a .png/.tif
+            # from the scene data.
+            if query.animated_product != "None":
+                animated_product = AnimationType.objects.get(
+                    type_id=query.animated_product)
+                animated_data = wofs_data.isel(time=timeslice).drop(
+                    "time") if animated_product.type_id == "scene_water" else water_analysis
+                if not os.path.exists(base_temp_path + query.query_id + '/' + str(time_num)):
+                    os.mkdir(base_temp_path + query.query_id +
+                             '/' + str(time_num))
+                animated_data.to_netcdf(base_temp_path + query.query_id + '/' + str(
+                    time_num) + '/' + str(chunk_num) + str(time_index + timeslice) + ".nc")
+        time_index = time_index + processing_options['time_slices_per_iteration']
+
+    # Save this geographic chunk to disk.
+    geo_path = base_temp_path + query.query_id + "/geo_chunk_" + \
+        str(time_num) + "_" + str(chunk_num) + ".nc"
+    if water_analysis is None:
+        return [None, None]
+    water_analysis.to_netcdf(geo_path)
+    print("Done with chunk: " + str(time_num) + " " + str(chunk_num))
+    return [geo_path, acquisition_metadata]
+
 # Errors out under specific circumstances, used to pass error msgs to user.
 # uses the result path as a message container: TODO? Change this.
 def error_with_message(result, message):
+    if os.path.exists(base_temp_path + result.query_id):
+        shutil.rmtree(base_temp_path + result.query_id)
     result.status = "ERROR"
     result.data_path = message
     result.save()
     print(message)
     return
+
+# Datacube instance to be initialized.
+# A seperate DC instance is created for each worker.
+dc = None
+
+# Init/shutdown functions for handling dc instances.
+# this is done to prevent synchronization/conflicts between workers when
+# accessing DC resources.
+@worker_process_init.connect
+def init_worker(**kwargs):
+    print("Creating DC instance for worker.")
+    global dc
+    dc = DataAccessApi()
+
+
+@worker_process_shutdown.connect
+def shutdown_worker(**kwargs):
+    print('Closing DC instance for worker.')
+    global dc
+    dc = None

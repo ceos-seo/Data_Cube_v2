@@ -20,7 +20,7 @@
 # under the License.
 
 from django.contrib import admin
-from .models import Query, Metadata, Result, Satellite, SatelliteBand, ResultType, Area
+from .models import Query, Metadata, Result, Satellite, ResultType, Area, Compositor
 
 class QueryAdmin(admin.ModelAdmin):
     list_display = ('id','title','user_id','platform','time_start_display','time_end_display')
@@ -39,9 +39,6 @@ class MetadataAdmin(admin.ModelAdmin):
 class ResultAdmin(admin.ModelAdmin):
     list_display = ('result_path','status','latitude_min','latitude_max','longitude_min','longitude_max','latitude_max','latitude_min','longitude_max','longitude_min')
 
-class SatelliteBandAdmin(admin.ModelAdmin):
-    list_display = ('satellite_id','band_number','band_name')
-
 class ResultTypeAdmin(admin.ModelAdmin):
     list_display = ('satellite_id','result_id','result_type')
 
@@ -51,11 +48,14 @@ class SatelliteAdmin(admin.ModelAdmin):
 class AreaAdmin(admin.ModelAdmin):
     list_display = ('area_id','area_name','area_product')
 
+class CompositorAdmin(admin.ModelAdmin):
+    list_display = ('compositor_id','compositor')
+
 # Register your models here.
 admin.site.register(Query, QueryAdmin)
 admin.site.register(Metadata, MetadataAdmin)
 admin.site.register(Result, ResultAdmin)
-admin.site.register(SatelliteBand, SatelliteBandAdmin)
 admin.site.register(ResultType, ResultTypeAdmin)
 admin.site.register(Satellite, SatelliteAdmin)
 admin.site.register(Area, AreaAdmin)
+admin.site.register(Compositor, CompositorAdmin)

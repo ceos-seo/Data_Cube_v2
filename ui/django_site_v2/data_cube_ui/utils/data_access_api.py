@@ -63,8 +63,8 @@ class DataAccessApi:
         # dc is useful for all data access, api is only really used for metadata
         # fetching.
         # hardcoded config location. could parameterize.
-        #self.dc = datacube.Datacube(config='/home/localuser/Datacube/data_cube_ui/config/.datacube.conf')
-        self.dc = datacube.Datacube()
+        self.dc = datacube.Datacube(config='/home/localuser/Datacube/data_cube_ui/config/.datacube.conf')
+        #self.dc = datacube.Datacube()
         self.api = datacube.api.API(datacube=self.dc)
 
     """

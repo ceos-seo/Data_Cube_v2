@@ -47,6 +47,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+MASTER_NODE = '127.0.0.1'
 
 # Application definition
 
@@ -54,6 +55,7 @@ INSTALLED_APPS = [
     'apps.custom_mosaic_tool',
     'apps.water_detection',
     'apps.task_manager',
+    'apps.tsm',
     'apps.home',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -89,6 +91,7 @@ TEMPLATES = [
             os.path.join(BASE_DIR, 'templates').replace('\\','/'),
             os.path.join(BASE_DIR, 'templates/custom_mosaic_tool').replace('\\','/'),
             os.path.join(BASE_DIR, 'templates/water_detection').replace('\\','/'),
+            os.path.join(BASE_DIR, 'templates/tsm').replace('\\','/'),
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -115,7 +118,7 @@ DATABASES = {
         'NAME': 'datacube',
 	'USER': 'dc_user',
 	'PASSWORD': 'dcuser1',
-	'HOST': '127.0.0.1'
+	'HOST': MASTER_NODE
     }
 }
 
@@ -144,7 +147,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/New_York'
 
 USE_I18N = True
 
@@ -164,9 +167,17 @@ STATICFILES_DIRS = [
 ]
 
 # CELERY STUFF
-BROKER_URL = 'redis://localhost:6379'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379'
-CELERY_ACCEPT_CONTENT = ['application/json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+
+#master/slave machines.. master processes in the default queue, sends off tasks to workers.
+CELERY_ROUTES = {'generate_mosaic_chunk': {'queue': 'chunk_processing'},
+                 'generate_water_chunk': {'queue': 'chunk_processing'},
+                 'generate_tsm_chunk': {'queue': 'chunk_processing'}}
+
+BROKER_URL = 'redis://' + MASTER_NODE + ':6379'
+CELERY_RESULT_BACKEND = 'redis://' + MASTER_NODE + ':6379'
+#CELERY_ACCEPT_CONTENT = ['application/json', 'yaml']
+#CELERY_TASK_SERIALIZER = 'yaml'
+#CELERY_RESULT_SERIALIZER = 'yaml'
+CELERYD_PREFETCH_MULTIPLIER = 1
+CELERY_ACKS_LATE = True
 CELERY_TIMEZONE = 'UTC'
