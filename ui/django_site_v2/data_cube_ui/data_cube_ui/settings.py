@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'apps.water_detection',
     'apps.task_manager',
     'apps.tsm',
+    'apps.fractional_cover',
     'apps.home',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -171,7 +172,8 @@ STATICFILES_DIRS = [
 #master/slave machines.. master processes in the default queue, sends off tasks to workers.
 CELERY_ROUTES = {'generate_mosaic_chunk': {'queue': 'chunk_processing'},
                  'generate_water_chunk': {'queue': 'chunk_processing'},
-                 'generate_tsm_chunk': {'queue': 'chunk_processing'}}
+                 'generate_tsm_chunk': {'queue': 'chunk_processing'},
+                 'generate_fractional_cover_chunk': {'queue': 'chunk_processing'}}
 
 BROKER_URL = 'redis://' + MASTER_NODE + ':6379'
 CELERY_RESULT_BACKEND = 'redis://' + MASTER_NODE + ':6379'

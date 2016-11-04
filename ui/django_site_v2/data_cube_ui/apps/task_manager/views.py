@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 from apps.custom_mosaic_tool.models import Result as cm_result, Query as cm_query, Metadata as cm_meta
 from apps.water_detection.models import Query as wd_query, Result as wd_result, Metadata as wd_meta
 from apps.tsm.models import Query as tsm_query, Result as tsm_result, Metadata as tsm_meta
+from apps.fractional_cover.models import Query as fractional_cover_query, Result as fractional_cover_result, Metadata as fractional_cover_meta
 
 from collections import OrderedDict
 
@@ -107,7 +108,7 @@ def get_task_manager(request, app_id):
     headers_dictionary = OrderedDict()
     data_dictionary = OrderedDict()
 
-    queries = cm_query if app_id == "custom_mosaic_tool" else wd_query if app_id == "water_detection" else tsm_query
+    queries = cm_query if app_id == "custom_mosaic_tool" else wd_query if app_id == "water_detection" else fractional_cover_query if app_id == "fractional_cover" else tsm_query
 
     headers_dictionary = build_headers_dictionary(queries)
     for query in queries.objects.all().order_by('-query_start')[:100]:
@@ -150,10 +151,10 @@ def get_query_details(request, app_id, requested_query_id):
     :template:`custom_mosaic_tool/query_details.html`
     """
 
-    queries = cm_query if app_id == "custom_mosaic_tool" else wd_query if app_id == "water_detection" else tsm_query
-    metas = cm_meta if app_id == "custom_mosaic_tool" else wd_meta if app_id == "water_detection" else tsm_meta
-    results = cm_result if app_id == "custom_mosaic_tool" else wd_result if app_id == "water_detection" else tsm_result
-    template = 'custom_mosaic_tool/query_details.html' if app_id == "custom_mosaic_tool" else 'water_detection/query_details.html' if app_id == "water_detection" else 'tsm/query_details.html'
+    queries = cm_query if app_id == "custom_mosaic_tool" else wd_query if app_id == "water_detection" else fractional_cover_query if app_id == "fractional_cover" else tsm_query
+    metas = cm_meta if app_id == "custom_mosaic_tool" else wd_meta if app_id == "water_detection" else fractional_cover_meta if app_id == "fractional_cover" else tsm_meta
+    results = cm_result if app_id == "custom_mosaic_tool" else wd_result if app_id == "water_detection" else fractional_cover_result if app_id == "fractional_cover" else tsm_result
+    template = 'custom_mosaic_tool/query_details.html' if app_id == "custom_mosaic_tool" else 'water_detection/query_details.html' if app_id == "water_detection" else 'fractional_cover/query_details.html' if app_id == "fractional_cover" else 'tsm/query_details.html'
 
     query = queries.objects.get(id=requested_query_id)
     metadata = metas.objects.get(query_id=query.query_id)

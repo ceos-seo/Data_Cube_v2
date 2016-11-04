@@ -51,10 +51,10 @@ from .utils import update_model_bounds_with_dataset
 
 # constants up top for easy access/modification
 # hardcoded colors input path..
-color_path = ['~/Datacube/data_cube_ui/utils/ramp', '~/Datacube/data_cube_ui/utils/au_clear_observations']
+color_path = ['~/Datacube/data_cube_ui/utils/color_scales/ramp', '~/Datacube/data_cube_ui/utils/color_scales/au_clear_observations']
 
-base_result_path = '/ui_results/tsm/'
-base_temp_path = '/ui_results_temp/'
+base_result_path = '/datacube/ui_results/tsm/'
+base_temp_path = '/datacube/ui_results_temp/'
 
 
 def addition(dataset, dataset_intermediate):

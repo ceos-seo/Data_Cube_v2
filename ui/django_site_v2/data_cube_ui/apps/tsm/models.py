@@ -257,6 +257,9 @@ class Area(models.Model):
     longitude_min = models.FloatField(default=0)
     longitude_max = models.FloatField(default=0)
 
+    date_min = models.DateField('date_min')
+    date_max = models.DateField('date_min')
+
     # map imagery data.
     # main imagery wraps the entire earth. This will end up looking bad, but will prevent stretching of the smaller imagery.
     # defaults to the usual -180,-101.25 -> 180,101.25 for the natgeo map.

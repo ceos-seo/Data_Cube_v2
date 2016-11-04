@@ -239,8 +239,11 @@ def save_to_geotiff(out_file, data_type, dataset_in, geotransform, spatial_ref,
     out_band = None
     raster = None
 
-def create_rgb_png_from_tiff(tif_path, png_path, bands=[1, 2, 3], png_filled_path=None, fill_color=None):
-    cmd = "gdal_translate -ot Byte -outsize 50% 50% -scale 0 4096 0 255 -of PNG -b " + str(bands[0]) + " -b " + str(bands[1]) + " -b " + str(bands[2]) + " " + \
+def create_rgb_png_from_tiff(tif_path, png_path, bands=[1, 2, 3], png_filled_path=None, fill_color=None, scale=None):
+    scale_string = ""
+    if scale is not None:
+        scale_string += "-scale " + str(scale[0]) + " " + str(scale[1]) + " 0 255"
+    cmd = "gdal_translate -ot Byte " + scale_string + " -of PNG -b " + str(bands[0]) + " -b " + str(bands[1]) + " -b " + str(bands[2]) + " " + \
         tif_path + ' ' + png_path
     os.system(cmd)
 

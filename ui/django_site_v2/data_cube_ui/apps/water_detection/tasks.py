@@ -49,15 +49,15 @@ from .utils import update_model_bounds_with_dataset
 
 # constants up top for easy access/modification
 # hardcoded colors input path..
-color_path = ['~/Datacube/data_cube_ui/utils/au_water_percentage',
-              '~/Datacube/data_cube_ui/utils/au_water_observations', '~/Datacube/data_cube_ui/utils/au_clear_observations']
+color_path = ['~/Datacube/data_cube_ui/utils/color_scales/au_water_percentage',
+              '~/Datacube/data_cube_ui/utils/color_scales/au_water_observations', '~/Datacube/data_cube_ui/utils/color_scales/au_clear_observations']
 # this is required as when netcdfs are read from disk they don't remain in the correct order.
 # they are consistently arranged in this order though
-color_path_anim = ['~/Datacube/data_cube_ui/utils/au_water_percentage',
-                   '~/Datacube/data_cube_ui/utils/au_clear_observations', '~/Datacube/data_cube_ui/utils/au_water_observations']
+color_path_anim = ['~/Datacube/data_cube_ui/utils/color_scales/au_water_percentage',
+                   '~/Datacube/data_cube_ui/utils/color_scales/au_clear_observations', '~/Datacube/data_cube_ui/utils/color_scales/au_water_observations']
 
-base_result_path = '/ui_results/water_detection/'
-base_temp_path = '/ui_results_temp/'
+base_result_path = '/datacube/ui_results/water_detection/'
+base_temp_path = '/datacube/ui_results_temp/'
 
 def addition(dataset, dataset_intermediate):
     """

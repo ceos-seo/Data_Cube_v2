@@ -23,7 +23,7 @@ from django import forms
 
 import datetime
 
-from .models import Compositor, ResultType
+from .models import Compositor
 
 """
 File designed to house the different forms for taking in user input in the web application.  Forms
@@ -46,23 +46,11 @@ class DataSelectForm(forms.Form):
         description
     """
 
-    #these are done in the init funct.
-    result_type = forms.ChoiceField(label='Result Type (Map view/png):', widget=forms.Select(attrs={'class': 'field-long'}))
-
     compositor_list = [(compositor.compositor_id, compositor.compositor) for compositor in Compositor.objects.all()]
     compositor_selection = forms.ChoiceField(help_text='Select the method by which the "best" pixel will be chosen.', label="Compositing Method:", choices=compositor_list, widget=forms.Select(attrs={'class': 'field-long tooltipped'}))
 
     title = forms.CharField(widget=forms.HiddenInput())
     description = forms.CharField(widget=forms.HiddenInput())
-
-    def __init__(self, satellite_id=None, *args, **kwargs):
-        super(DataSelectForm, self).__init__(*args, **kwargs)
-        if satellite_id is not None:
-            #populate the results list and recreate the form element.
-            result_types = ResultType.objects.filter(satellite_id=satellite_id)
-            results_list = [(result.result_id, result.result_type) for result in result_types]
-            self.fields["result_type"] = forms.ChoiceField(help_text='Select the type of image you would like displayed.', label='Result Type (Map view/png):', choices=results_list, widget=forms.Select(attrs={'class': 'field-long tooltipped'}))
-
 
 class GeospatialForm(forms.Form):
     """

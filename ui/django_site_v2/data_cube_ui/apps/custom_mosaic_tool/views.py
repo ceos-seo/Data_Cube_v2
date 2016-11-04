@@ -73,12 +73,14 @@ def custom_mosaic_tool(request, area_id):
     if request.user.is_authenticated():
         user_id = request.user.username
     satellites = Satellite.objects.all().order_by('satellite_id')
+    area = Area.objects.get(area_id=area_id)
+
     forms = {}
     for satellite in satellites:
         forms[satellite.satellite_id] = {'Data Selection': DataSelectForm(satellite_id=satellite.satellite_id, auto_id=satellite.satellite_id + "_%s"),
-                                         'Geospatial Bounds': GeospatialForm(auto_id=satellite.satellite_id + "_%s")}
+                                         'Geospatial Bounds': GeospatialForm(area=area, auto_id=satellite.satellite_id + "_%s") }
     running_queries = Query.objects.filter(user_id=user_id, area_id=area_id, complete=False)
-    area = Area.objects.get(area_id=area_id)
+
     context = {
         'tool_name': 'custom_mosaic_tool',
         'info_panel': 'custom_mosaic_tool/info_panel.html',

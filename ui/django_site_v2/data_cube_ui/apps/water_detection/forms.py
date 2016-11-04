@@ -93,3 +93,9 @@ class GeospatialForm(forms.Form):
         attrs={'class': 'datepicker field-divided', 'placeholder': '01/01/2010', 'required': 'required'}))
     time_end = forms.DateField(label='End Date', widget=forms.DateInput(
         attrs={'class': 'datepicker field-divided', 'placeholder': '01/02/2010', 'required': 'required'}))
+
+    def __init__(self, area=None, *args, **kwargs):
+        super(GeospatialForm, self).__init__(*args, **kwargs)
+        if area is not None:
+            self.fields['time_start'] = forms.DateField(initial=area.date_min.strftime("%m/%d/%Y"), label='Start Date', widget=forms.DateInput(attrs={'class': 'datepicker field-divided', 'required': 'required'}))
+            self.fields['time_end'] = forms.DateField(initial=area.date_max.strftime("%m/%d/%Y"), label='End Date', widget=forms.DateInput(attrs={'class': 'datepicker field-divided', 'required': 'required'}))

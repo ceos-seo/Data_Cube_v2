@@ -74,15 +74,14 @@ def water_detection(request, area_id):
         user_id = request.user.username
     satellites = Satellite.objects.all().order_by('satellite_id')
     forms = {}
+    area = Area.objects.get(area_id=area_id)
     for satellite in satellites:
         forms[satellite.satellite_id] = {'Output Image Characteristics': DataSelectForm(
-            satellite_id=satellite.satellite_id, auto_id=satellite.satellite_id + "_%s"), 'Geospatial Bounds': GeospatialForm(auto_id=satellite.satellite_id + "_%s")}
+            satellite_id=satellite.satellite_id, auto_id=satellite.satellite_id + "_%s"), 'Geospatial Bounds': GeospatialForm(area=area, auto_id=satellite.satellite_id + "_%s") }
         # gets a flat list of the bands/result types and populates the choices.
     # will later be populated after we have authentication working.
     running_queries = Query.objects.filter(
         user_id=user_id, area_id=area_id, complete=False)
-
-    area = Area.objects.get(area_id=area_id)
 
     context = {
         'tool_name': 'water_detection',

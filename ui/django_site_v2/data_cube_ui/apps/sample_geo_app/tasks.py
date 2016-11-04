@@ -53,8 +53,8 @@ Class for handling loading celery workers to perform tasks asynchronously.
 # Last modified date:
 
 # constants up top for easy access/modification
-base_result_path = '/datacube/ui_results/custom_mosaic/'
-base_temp_path = '/datacube/ui_results_temp/'
+base_result_path = '/ui_results/custom_mosaic/'
+base_temp_path = '/ui_results_temp/'
 
 # Datacube instance to be initialized.
 # A seperate DC instance is created for each worker.
@@ -160,7 +160,7 @@ def create_cloudfree_mosaic(query_id, user_id):
         user_id (string): The ID of the user that requested the query be made.
 
     Returns:
-        Returns nothing
+        Doesn't return as the method is ran asynchronously.
     """
 
     print("Starting for query:" + query_id)
@@ -311,7 +311,7 @@ def create_cloudfree_mosaic(query_id, user_id):
 
         # we've got the tif, now do the png.
         bands = [measurements.index(result_type.red)+1, measurements.index(result_type.green)+1, measurements.index(result_type.blue)+1]
-        create_rgb_png_from_tiff(tif_path, png_path, png_filled_path=png_filled_path, fill_color=result_type.fill, bands=bands, scale=(0, 4096))
+        create_rgb_png_from_tiff(tif_path, png_path, png_filled_path=png_filled_path, fill_color=result_type.fill, bands=bands)
 
         # update the results and finish up.
         update_model_bounds_with_dataset([result, meta, query], dataset_out)
@@ -327,6 +327,7 @@ def create_cloudfree_mosaic(query_id, user_id):
         query.complete = True
         query.query_end = datetime.datetime.now()
         query.save()
+
     except:
         error_with_message(
             result, "There was an exception when handling this query.")
@@ -334,8 +335,8 @@ def create_cloudfree_mosaic(query_id, user_id):
     # end error wrapping.
     return
 
-@task(name="generate_mosaic_chunk")
-def generate_mosaic_chunk(time_num, chunk_num, processing_options=None, query=None, acquisition_list=None, lat_range=None, lon_range=None, measurements=None):
+@task(name="generate_TOOL_chunk")
+def generate_TOOL_chunk(time_num, chunk_num, processing_options=None, query=None, acquisition_list=None, lat_range=None, lon_range=None, measurements=None):
     """
     responsible for generating a piece of a custom mosaic product. This grabs the x/y area specified in the lat/lon ranges, gets all data
     from acquisition_list, which is a list of acquisition dates, and creates the custom mosaic using the function named in processing_options.

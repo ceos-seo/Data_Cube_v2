@@ -405,10 +405,14 @@ under the License.
           //worker init w/ the serialized data.
           if (typeof(Worker) !== undefined) {
               var w = new Worker("/static/assets/js/dcw.js");
+              var result_type = values['result_type']
+              if(result_type == undefined) {
+                result_type = "UI Task";
+              }
               w.postMessage({
                   'tool_name': window.tool_name,
                   'msg': "NEW",
-                  'result_type': values['result_type'],
+                  'result_type': result_type,
                   'form_data': request,
                   'csrf': csrftoken
               });
